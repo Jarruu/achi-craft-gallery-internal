@@ -1,5 +1,6 @@
-import { PrismaClient } from '../src/generated/prisma/client.js'
+import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+import crypto from 'crypto'
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -11,6 +12,7 @@ async function main() {
   console.log('🌱 Melakukan seeding inventaris Galeri Kriya Achi...')
 
   // Clear tables in reverse order of foreign key dependencies
+  await prisma.user.deleteMany()
   await prisma.productMaterial.deleteMany()
   await prisma.stockLog.deleteMany()
   await prisma.product.deleteMany()
@@ -170,7 +172,16 @@ async function main() {
     ]
   })
 
-  console.log(`✅ Database berhasil diseed. Terdaftar ${createdMaterials.length} bahan baku dan 2 cetak biru produk.`)
+  // Create admin user
+  const adminUser = await prisma.user.create({
+    data: {
+      email: 'adminacg@gmail.com',
+      password: crypto.createHash('sha256').update('123456').digest('hex'),
+    }
+  })
+
+  console.log(`👤 Admin user seeded: ${adminUser.email}`)
+  console.log(`✅ Database berhasil diseed. Terdaftar ${createdMaterials.length} bahan baku, 2 cetak biru produk, dan 1 akun admin.`)
 }
 
 main()

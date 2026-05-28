@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
 import { z } from 'zod'
+import { toast } from 'sonner'
 import { 
   getMaterials, 
   createMaterial, 
@@ -20,12 +21,20 @@ import {
   X,
   Layers
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog'
 
 // Schema for route query params
 const searchSchema = z.object({
   search: z.string().optional(),
   type: z.string().optional(),
   category: z.string().optional(),
+  page: z.number().catch(1).optional(),
+  limit: z.number().catch(10).optional(),
 })
 
 export const Route = createFileRoute('/materials')({
@@ -34,10 +43,20 @@ export const Route = createFileRoute('/materials')({
     search: search.search,
     type: search.type,
     category: search.category,
+    page: search.page,
+    limit: search.limit,
   }),
   loader: async ({ deps }) => {
-    const materials = await getMaterials({ data: deps })
-    return { materials }
+    const { items: materials, totalCount } = await getMaterials({ 
+      data: {
+        search: deps.search,
+        type: deps.type,
+        category: deps.category,
+        page: deps.page || 1,
+        limit: deps.limit || 10,
+      } 
+    })
+    return { materials, totalCount }
   },
   component: MaterialsPage,
 })
@@ -144,9 +163,23 @@ function MaterialVisual({ type, colorPattern, imageUrl }: { type: string, colorP
 }
 
 function MaterialsPage() {
-  const { materials } = Route.useLoaderData()
+  const { materials, totalCount } = Route.useLoaderData()
   const searchParams = useSearch({ from: '/materials' })
   const navigate = useNavigate()
+
+  const page = searchParams.page || 1
+  const limit = searchParams.limit || 10
+  const totalPages = Math.ceil(totalCount / limit)
+
+  const handlePageChange = (newPage: number) => {
+    navigate({
+      to: '/materials',
+      search: (prev) => ({
+        ...prev,
+        page: newPage,
+      }),
+    })
+  }
 
   // State management
   const [selectedMaterial, setSelectedMaterial] = useState<any>(null)
@@ -199,10 +232,11 @@ function MaterialsPage() {
       search: (prev) => {
         const next = { ...prev }
         if (value) {
-          next[key as keyof typeof next] = value
+          next[key as keyof typeof next] = value as any
         } else {
           delete next[key as keyof typeof next]
         }
+        next.page = 1 // Reset page to 1 on filter/search change
         return next
       }
     })
@@ -233,6 +267,10 @@ function MaterialsPage() {
         }
       })
       
+      toast.success('Bahan Baku Ditambahkan', {
+        description: `Bahan baku ${newMaterial.name} berhasil didaftarkan ke sistem.`
+      })
+
       // Reset & Reload
       setIsAdding(false)
       setNewMaterial({
@@ -250,7 +288,9 @@ function MaterialsPage() {
       })
       navigate({ to: '/materials', search: searchParams }) // Reload loader
     } catch (err: any) {
-      alert(`Error creating material: ${err.message}`)
+      toast.error('Gagal Menambahkan Bahan Baku', {
+        description: err.message || 'Terjadi kesalahan saat menyimpan data.'
+      })
     }
   }
 
@@ -277,8 +317,20 @@ function MaterialsPage() {
         }
       })
       
+      toast.success('Penyesuaian Stok Berhasil', {
+        description: `Stok bahan baku ${selectedMaterial.name} berhasil diperbarui.`
+      })
+
       // Refresh current selected view
-      const reloadedMaterials = await getMaterials({ data: searchParams })
+      const { items: reloadedMaterials } = await getMaterials({ 
+        data: {
+          search: searchParams.search,
+          type: searchParams.type,
+          category: searchParams.category,
+          page: searchParams.page || 1,
+          limit: searchParams.limit || 10,
+        }
+      })
       const reloadedSelected = reloadedMaterials.find(m => m.id === selectedMaterial.id)
       setSelectedMaterial(reloadedSelected || updated)
       
@@ -287,7 +339,9 @@ function MaterialsPage() {
       setAdjNotes('')
       navigate({ to: '/materials', search: searchParams }) // reload route loader data
     } catch (err: any) {
-      alert(`Error updating stock: ${err.message}`)
+      toast.error('Gagal Memperbarui Stok', {
+        description: err.message || 'Terjadi kesalahan saat menyesuaikan jumlah stok.'
+      })
     }
   }
 
@@ -296,10 +350,15 @@ function MaterialsPage() {
     if (!confirm('Apakah Anda yakin ingin menghapus bahan baku ini secara permanen? Semua riwayat catatan stok juga akan ikut dihapus.')) return
     try {
       await deleteMaterial({ data: { id } })
+      toast.success('Bahan Baku Dihapus', {
+        description: 'Bahan baku telah berhasil dihapus secara permanen dari sistem.'
+      })
       setSelectedMaterial(null)
       navigate({ to: '/materials', search: searchParams })
     } catch (err: any) {
-      alert(`Gagal menghapus bahan baku: ${err.message}`)
+      toast.error('Gagal Menghapus Bahan Baku', {
+        description: err.message || 'Terjadi kesalahan saat menghapus data.'
+      })
     }
   }
 
@@ -375,10 +434,10 @@ function MaterialsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* LEFT COLUMN: Catalog list (7/12) */}
-        <div className="lg:col-span-7 space-y-6">
+        {/* LEFT COLUMN: Catalog list (8/12) */}
+        <div className="lg:col-span-8 space-y-6">
           
           {/* Editorial Section Header */}
           <div className="border-b-[0.5px] border-gallery-line pb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -391,14 +450,11 @@ function MaterialsPage() {
               </p>
             </div>
             <button 
-              onClick={() => {
-                setIsAdding(!isAdding)
-                setSelectedMaterial(null)
-              }}
-              className="flex items-center gap-2 bg-gallery-dark text-gallery-base px-4 py-2 text-xs font-semibold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-200"
+              onClick={() => setIsAdding(true)}
+              className="flex items-center gap-2 bg-gallery-dark text-gallery-base px-4 py-2 text-xs font-semibold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-200 cursor-pointer"
             >
-              {isAdding ? <X size={14} /> : <Plus size={14} />}
-              {isAdding ? 'Batal' : 'Tambah Bahan Baku'}
+              <Plus size={14} />
+              Tambah Bahan Baku
             </button>
           </div>
 
@@ -474,18 +530,18 @@ function MaterialsPage() {
             </div>
           ) : viewMode === 'table' ? (
             /* COMPACT TABLE LAYOUT */
-            <div className="border-[0.5px] border-gallery-line bg-gallery-split overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[600px]">
+            <div className="border-[0.5px] border-gallery-line bg-gallery-split overflow-hidden">
+              <table className="w-full text-left border-collapse table-auto">
                 <thead>
                   <tr className="border-b-[0.5px] border-gallery-line bg-gallery-base/40 text-[9px] font-bold uppercase tracking-widest text-gallery-muted">
-                    <th className="py-3 px-4 font-bold">Visual</th>
-                    <th className="py-3 px-4 font-bold">SKU</th>
-                    <th className="py-3 px-4 font-bold">Nama Bahan</th>
-                    <th className="py-3 px-4 font-bold">Tipe</th>
-                    <th className="py-3 px-4 font-bold">Kategori</th>
-                    <th className="py-3 px-4 font-bold">Kualitas</th>
-                    <th className="py-3 px-4 font-bold">Ukuran</th>
-                    <th className="py-3 px-4 font-bold text-right">Stok</th>
+                    <th className="py-3 px-2 sm:px-4 font-bold w-12 text-center">Visual</th>
+                    <th className="py-3 px-2 sm:px-4 font-bold">SKU</th>
+                    <th className="py-3 px-2 sm:px-4 font-bold">Nama Bahan</th>
+                    <th className="hidden sm:table-cell py-3 px-2 sm:px-4 font-bold">Tipe</th>
+                    <th className="hidden md:table-cell lg:hidden xl:table-cell py-3 px-2 sm:px-4 font-bold">Kategori</th>
+                    <th className="hidden xl:table-cell py-3 px-2 sm:px-4 font-bold">Kualitas</th>
+                    <th className="hidden sm:table-cell py-3 px-2 sm:px-4 font-bold">Ukuran</th>
+                    <th className="py-3 px-2 sm:px-4 font-bold text-right">Stok</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gallery-line text-xs font-semibold text-gallery-dark">
@@ -508,8 +564,8 @@ function MaterialsPage() {
                           selectedMaterial?.id === m.id ? 'bg-gallery-base/80' : ''
                         } ${isLowStock ? 'bg-red-50/5' : ''}`}
                       >
-                        <td className="py-3 px-4">
-                          <div className="w-6 h-6 border-[0.5px] border-gallery-line shrink-0 flex items-center justify-center relative overflow-hidden" style={{ backgroundColor: swatchColor }}>
+                        <td className="py-3 px-2 sm:px-4 text-center">
+                          <div className="w-6 h-6 border-[0.5px] border-gallery-line shrink-0 flex items-center justify-center relative overflow-hidden mx-auto" style={{ backgroundColor: swatchColor }}>
                             {m.imageUrl && m.imageUrl.trim().startsWith('http') && (
                               <img src={m.imageUrl} alt={m.name} className="w-full h-full object-cover" />
                             )}
@@ -517,18 +573,18 @@ function MaterialsPage() {
                             {m.type === 'FABRIC' && <div className="absolute inset-0 border border-dashed border-gallery-dark/10" />}
                           </div>
                         </td>
-                        <td className="py-3 px-4 font-bold tracking-wide uppercase font-sans text-gallery-dark">{m.sku}</td>
-                        <td className="py-3 px-4 font-serif text-[13px]">{m.name}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-2 sm:px-4 font-bold tracking-wide uppercase font-sans text-gallery-dark">{m.sku}</td>
+                        <td className="py-3 px-2 sm:px-4 font-serif text-[13px] break-words max-w-[100px] sm:max-w-[150px] md:max-w-[200px] lg:max-w-[140px] xl:max-w-[220px]">{m.name}</td>
+                        <td className="hidden sm:table-cell py-3 px-2 sm:px-4">
                           <span className="text-[8px] uppercase font-bold tracking-wider px-1.5 py-0.5 bg-gallery-base/90 border-[0.5px] border-gallery-line">
                             {m.type}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-gallery-muted font-normal">{m.category}</td>
-                        <td className="py-3 px-4 text-gallery-muted font-normal">{m.quality}</td>
-                        <td className="py-3 px-4 text-gallery-muted font-normal uppercase">{m.size}</td>
-                        <td className="py-3 px-4 text-right">
-                          <span className={`font-bold font-sans ${isLowStock ? 'text-red-700 bg-red-100/50 px-1.5 py-0.5' : 'text-gallery-dark'}`}>
+                        <td className="hidden md:table-cell lg:hidden xl:table-cell py-3 px-2 sm:px-4 text-gallery-muted font-normal">{m.category}</td>
+                        <td className="hidden xl:table-cell py-3 px-2 sm:px-4 text-gallery-muted font-normal">{m.quality}</td>
+                        <td className="hidden sm:table-cell py-3 px-2 sm:px-4 text-gallery-muted font-normal uppercase">{m.size}</td>
+                        <td className="py-3 px-2 sm:px-4 text-right">
+                          <span className={`font-bold font-sans whitespace-nowrap ${isLowStock ? 'text-red-700 bg-red-100/50 px-1.5 py-0.5' : 'text-gallery-dark'}`}>
                             {m.stock} <span className="text-[10px] text-gallery-muted font-semibold uppercase">{m.unit}</span>
                           </span>
                         </td>
@@ -616,202 +672,74 @@ function MaterialsPage() {
               })}
             </div>
           )}
+
+          {/* PAGINATION CONTROLS */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between border-[0.5px] border-gallery-line bg-gallery-split p-4 gap-3 text-xs font-semibold text-gallery-dark">
+              <span className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Halaman {page} dari {totalPages} (Total {totalCount} bahan)
+              </span>
+              
+              <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => handlePageChange(page - 1)}
+                  className="px-3 py-1.5 border-[0.5px] border-gallery-line bg-gallery-base hover:border-gallery-dark disabled:opacity-40 disabled:hover:border-gallery-line disabled:cursor-not-allowed transition-all uppercase tracking-widest text-[9px] font-bold cursor-pointer"
+                >
+                  Sebelumnya
+                </button>
+                
+                {/* Page numbers */}
+                {Array.from({ length: totalPages }).map((_, idx) => {
+                  const pageNum = idx + 1
+                  const isCurrent = pageNum === page
+                  const isNear = Math.abs(pageNum - page) <= 1
+                  const isBoundary = pageNum === 1 || pageNum === totalPages
+
+                  if (isBoundary || isNear) {
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`w-8 h-8 flex items-center justify-center border-[0.5px] transition-all text-[10px] font-bold cursor-pointer ${
+                          isCurrent
+                            ? 'bg-gallery-dark text-gallery-base border-gallery-dark'
+                            : 'bg-gallery-base border-gallery-line hover:border-gallery-dark'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  }
+
+                  // Show ellipses if needed
+                  if (pageNum === 2 && page > 3) {
+                    return <span key="ellipsis-start" className="text-gallery-muted px-1 select-none">...</span>
+                  }
+                  if (pageNum === totalPages - 1 && page < totalPages - 2) {
+                    return <span key="ellipsis-end" className="text-gallery-muted px-1 select-none">...</span>
+                  }
+
+                  return null
+                })}
+
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => handlePageChange(page + 1)}
+                  className="px-3 py-1.5 border-[0.5px] border-gallery-line bg-gallery-base hover:border-gallery-dark disabled:opacity-40 disabled:hover:border-gallery-line disabled:cursor-not-allowed transition-all uppercase tracking-widest text-[9px] font-bold cursor-pointer"
+                >
+                  Berikutnya
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-      {/* RIGHT COLUMN: Action board / detail log / creation pane (5/12) */}
-      <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-10">
-        
-        {/* CASE A: Create Material Panel */}
-        {isAdding && (
-          <div className="bg-gallery-split border-[0.5px] border-gallery-dark p-6 space-y-5">
-            <div className="border-b-[0.5px] border-gallery-line pb-3 flex justify-between items-center">
-              <h3 className="font-serif text-xl tracking-tight text-gallery-dark uppercase">
-                TAMBAH BAHAN BAKU BARU
-              </h3>
-              <button 
-                onClick={() => setIsAdding(false)}
-                className="text-gallery-muted hover:text-gallery-dark transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                    Kode SKU / Nomor Unik*
-                  </label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="e.g. LTH-SYN-BK01"
-                    value={newMaterial.sku}
-                    onChange={(e) => setNewMaterial({...newMaterial, sku: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                    Jenis Bahan*
-                  </label>
-                  <select 
-                    value={newMaterial.type}
-                    onChange={(e) => {
-                      const t = e.target.value
-                      let u = 'feet'
-                      if (t === 'FABRIC') u = 'meter'
-                      if (t === 'GLUE') u = 'ml'
-                      if (t === 'ZIPPER') u = 'pcs'
-                      if (t === 'ACCESSORY') u = 'pcs'
-                      setNewMaterial({...newMaterial, type: t, unit: u})
-                    }}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide uppercase"
-                  >
-                    <option value="LEATHER">Kulit (Leather)</option>
-                    <option value="FABRIC">Kain (Fabric)</option>
-                    <option value="GLUE">Lem (Glue)</option>
-                    <option value="ZIPPER">Resleting (Zipper)</option>
-                    <option value="ACCESSORY">Aksesori</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                  Nama Bahan Baku*
-                </label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="e.g. Synthetic Nappa Suede"
-                  value={newMaterial.name}
-                  onChange={(e) => setNewMaterial({...newMaterial, name: e.target.value})}
-                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                    Kategori / Kelompok*
-                  </label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="e.g. Synthetic, Grade A, Brass"
-                    value={newMaterial.category}
-                    onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                    Kualitas Bahan*
-                  </label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="e.g. Premium, Grade A, Standard"
-                    value={newMaterial.quality}
-                    onChange={(e) => setNewMaterial({...newMaterial, quality: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                    Ukuran / Detail Fisik*
-                  </label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="e.g. 5x5 ft, 1m, 120ml"
-                    value={newMaterial.size}
-                    onChange={(e) => setNewMaterial({...newMaterial, size: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                    Jumlah Stok Awal*
-                  </label>
-                  <input 
-                    type="number" 
-                    step="any"
-                    required 
-                    value={newMaterial.stock}
-                    onChange={(e) => setNewMaterial({...newMaterial, stock: Number(e.target.value)})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                    Satuan (cth: meter, pcs)*
-                  </label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="e.g. feet, meter, ml, pcs"
-                    value={newMaterial.unit}
-                    onChange={(e) => setNewMaterial({...newMaterial, unit: e.target.value.toLowerCase()})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                  Pilihan Warna / Motif*
-                </label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="e.g. Python Gold, Matte Slate Black"
-                  value={newMaterial.colorPattern}
-                  onChange={(e) => setNewMaterial({...newMaterial, colorPattern: e.target.value})}
-                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                    URL Foto
-                  </label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. https://... (Optional)"
-                    value={newMaterial.imageUrl}
-                    onChange={(e) => setNewMaterial({...newMaterial, imageUrl: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                    Tanggal Kedaluwarsa (Jika Ada)
-                  </label>
-                  <input 
-                    type="date" 
-                    placeholder="Optional"
-                    value={newMaterial.expiredAt}
-                    onChange={(e) => setNewMaterial({...newMaterial, expiredAt: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                  />
-                </div>
-              </div>
-
-              <button 
-                type="submit" 
-                className="w-full bg-gallery-dark text-gallery-base py-2.5 text-xs font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity active:scale-95 duration-200 mt-2"
-              >
-                Simpan Bahan Baku Baru
-              </button>
-            </form>
-          </div>
-        )}
+      {/* RIGHT COLUMN: Action board / detail log / creation pane (4/12) */}
+      <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-10">
 
         {/* CASE B: Material Details and Stock Adjustment Panel */}
         {selectedMaterial && (
@@ -983,7 +911,7 @@ function MaterialsPage() {
         )}
 
         {/* DEFAULT STATE: Alert Board */}
-        {!selectedMaterial && !isAdding && (
+        {!selectedMaterial && (
           <div className="bg-gallery-split border-[0.5px] border-gallery-line p-6 space-y-6">
             <h3 className="font-serif text-xl tracking-tight text-gallery-dark uppercase border-b-[0.5px] border-gallery-line pb-3">
               PAPAN PERINGATAN STOK & KEDALUWARSA
@@ -1066,6 +994,189 @@ function MaterialsPage() {
 
       </div>
     </div>
+
+    <Dialog open={isAdding} onOpenChange={setIsAdding}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>TAMBAH BAHAN BAKU BARU</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleAddSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Kode SKU / Nomor Unik*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. LTH-SYN-BK01"
+                value={newMaterial.sku}
+                onChange={(e) => setNewMaterial({...newMaterial, sku: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Jenis Bahan*
+              </label>
+              <select 
+                value={newMaterial.type}
+                onChange={(e) => {
+                  const t = e.target.value
+                  let u = 'feet'
+                  if (t === 'FABRIC') u = 'meter'
+                  if (t === 'GLUE') u = 'ml'
+                  if (t === 'ZIPPER') u = 'pcs'
+                  if (t === 'ACCESSORY') u = 'pcs'
+                  setNewMaterial({...newMaterial, type: t, unit: u})
+                }}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide uppercase"
+              >
+                <option value="LEATHER">Kulit (Leather)</option>
+                <option value="FABRIC">Kain (Fabric)</option>
+                <option value="GLUE">Lem (Glue)</option>
+                <option value="ZIPPER">Resleting (Zipper)</option>
+                <option value="ACCESSORY">Aksesori</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+              Nama Bahan Baku*
+            </label>
+            <input 
+              type="text" 
+              required 
+              placeholder="e.g. Synthetic Nappa Suede"
+              value={newMaterial.name}
+              onChange={(e) => setNewMaterial({...newMaterial, name: e.target.value})}
+              className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Kategori / Kelompok*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. Synthetic, Grade A, Brass"
+                value={newMaterial.category}
+                onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Kualitas Bahan*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. Premium, Grade A, Standard"
+                value={newMaterial.quality}
+                onChange={(e) => setNewMaterial({...newMaterial, quality: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Ukuran / Detail Fisik*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. 5x5 ft, 1m, 120ml"
+                value={newMaterial.size}
+                onChange={(e) => setNewMaterial({...newMaterial, size: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Jumlah Stok Awal*
+              </label>
+              <input 
+                type="number" 
+                step="any"
+                required 
+                value={newMaterial.stock}
+                onChange={(e) => setNewMaterial({...newMaterial, stock: Number(e.target.value)})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Satuan (cth: meter, pcs)*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. feet, meter, ml, pcs"
+                value={newMaterial.unit}
+                onChange={(e) => setNewMaterial({...newMaterial, unit: e.target.value.toLowerCase()})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+              Pilihan Warna / Motif*
+            </label>
+            <input 
+              type="text" 
+              required 
+              placeholder="e.g. Python Gold, Matte Slate Black"
+              value={newMaterial.colorPattern}
+              onChange={(e) => setNewMaterial({...newMaterial, colorPattern: e.target.value})}
+              className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                URL Foto
+              </label>
+              <input 
+                type="text" 
+                placeholder="e.g. https://... (Optional)"
+                value={newMaterial.imageUrl}
+                onChange={(e) => setNewMaterial({...newMaterial, imageUrl: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Tanggal Kedaluwarsa (Jika Ada)
+              </label>
+              <input 
+                type="date" 
+                placeholder="Optional"
+                value={newMaterial.expiredAt}
+                onChange={(e) => setNewMaterial({...newMaterial, expiredAt: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            className="w-full bg-gallery-dark text-gallery-base py-2.5 text-xs font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity active:scale-95 duration-200 mt-2 cursor-pointer"
+          >
+            Simpan Bahan Baku Baru
+          </button>
+        </form>
+      </DialogContent>
+    </Dialog>
   </div>
   )
 }

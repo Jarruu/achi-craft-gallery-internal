@@ -30,10 +30,12 @@ export const getMaterials = createServerFn({ method: 'GET' })
     search: z.string().optional(),
     type: z.string().optional(),
     category: z.string().optional(),
+    page: z.number().optional(),
+    limit: z.number().optional(),
   }))
   .handler(async ({ data }) => {
     const { prisma } = await import('#/db.server')
-    const { search, type, category } = data
+    const { search, type, category, page, limit } = data
 
     const where: any = {}
 
@@ -53,7 +55,9 @@ export const getMaterials = createServerFn({ method: 'GET' })
       where.category = category
     }
 
-    return await prisma.material.findMany({
+    const totalCount = await prisma.material.count({ where })
+
+    const findOptions: any = {
       where,
       orderBy: [
         { createdAt: 'desc' }
@@ -64,7 +68,16 @@ export const getMaterials = createServerFn({ method: 'GET' })
           orderBy: { createdAt: 'desc' },
         },
       },
-    })
+    }
+
+    if (page && limit) {
+      findOptions.skip = (page - 1) * limit
+      findOptions.take = limit
+    }
+
+    const items = await prisma.material.findMany(findOptions)
+
+    return { items, totalCount }
   })
 
 export const createMaterial = createServerFn({ method: 'POST' })

@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { getProducts, createProduct } from '../lib/products.functions'
 import { getMaterials } from '../lib/materials.functions'
 import { 
@@ -15,10 +16,12 @@ import {
   X
 } from 'lucide-react'
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog'
+
 export const Route = createFileRoute('/products')({
   loader: async () => {
     const products = await getProducts()
-    const materials = await getMaterials({ data: {} })
+    const { items: materials } = await getMaterials({ data: {} })
     return { products, materials }
   },
   component: ProductsPage,
@@ -73,7 +76,9 @@ function ProductsPage() {
     // Validate material selections
     const filteredBOM = selectedBOMItems.filter(item => item.materialId !== '')
     if (filteredBOM.length === 0) {
-      alert('Harap tambahkan minimal satu bahan baku untuk produk ini.')
+      toast.error('Gagal Menyimpan', {
+        description: 'Harap tambahkan minimal satu bahan baku untuk produk ini.'
+      })
       return
     }
 
@@ -91,6 +96,10 @@ function ProductsPage() {
         }
       })
 
+      toast.success('Produk Ditambahkan', {
+        description: `Produk ${newProduct.name} berhasil didaftarkan ke dalam katalog.`
+      })
+
       // Reset
       setIsAdding(false)
       setNewProduct({ name: '', description: '', imageUrl: '' })
@@ -100,7 +109,9 @@ function ProductsPage() {
       // Reload route data
       navigate({ to: '/products' })
     } catch (err: any) {
-      alert(`Gagal menyimpan produk: ${err.message}`)
+      toast.error('Gagal Menyimpan Produk', {
+        description: err.message || 'Terjadi kesalahan saat menyimpan cetak biru produk.'
+      })
     }
   }
 
@@ -197,13 +208,12 @@ function ProductsPage() {
             </div>
             <button 
               onClick={() => {
-                setIsAdding(!isAdding)
-                setSelectedProduct(null)
+                setIsAdding(true)
               }}
               className="flex items-center gap-2 bg-gallery-dark text-gallery-base px-4 py-2 text-xs font-semibold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-200"
             >
-              {isAdding ? <X size={14} /> : <Plus size={14} />}
-              {isAdding ? 'Batal' : 'Tambah Produk Baru'}
+              <Plus size={14} />
+              <span>Tambah Produk Baru</span>
             </button>
           </div>
 
@@ -302,154 +312,7 @@ function ProductsPage() {
       {/* RIGHT COLUMN: Detail Viewer / Creator Panel (5/12) */}
       <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-10">
         
-        {/* CASE A: Create Innovation Panel */}
-        {isAdding && (
-          <div className="bg-gallery-split border-[0.5px] border-gallery-dark p-6 space-y-5">
-            <div className="border-b-[0.5px] border-gallery-line pb-3 flex justify-between items-center">
-              <h3 className="font-serif text-xl tracking-tight text-gallery-dark uppercase">
-                FORM PRODUK BARU
-              </h3>
-              <button 
-                onClick={() => setIsAdding(false)}
-                className="text-gallery-muted hover:text-gallery-dark transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitProduct} className="space-y-4">
-              
-              <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                  Nama Produk*
-                </label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="cth. Dompet Kulit Minimalis"
-                  value={newProduct.name}
-                  onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                  Link Foto / Gambar Produk
-                </label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. https://... (Optional)"
-                  value={newProduct.imageUrl}
-                  onChange={(e) => setNewProduct({...newProduct, imageUrl: e.target.value})}
-                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                  Deskripsi & Penjelasan Produk
-                </label>
-                <textarea 
-                  rows={2}
-                  placeholder="Tuliskan detail produk, gaya, atau catatan pembuatan di sini..."
-                  value={newProduct.description}
-                  onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
-                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans resize-none"
-                />
-              </div>
-
-              {/* Dynamic BOM ingredient selectors */}
-              <div className="space-y-3 pt-2">
-                <div className="flex justify-between items-center border-b-[0.5px] border-gallery-line pb-1.5">
-                  <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-dark font-bold">
-                    DAFTAR KEBUTUHAN BAHAN BAKU (BOM)
-                  </label>
-                  <button 
-                    type="button"
-                    onClick={handleAddBOMRow}
-                    className="text-[9px] font-bold text-gallery-dark uppercase tracking-widest flex items-center gap-1 hover:opacity-80"
-                  >
-                    <PlusCircle size={12} /> Tambah Bahan Baku
-                  </button>
-                </div>
-
-                <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-                  {selectedBOMItems.map((item, index) => (
-                    <div key={index} className="bg-gallery-base p-3 border-[0.5px] border-gallery-line space-y-2 relative">
-                      {selectedBOMItems.length > 1 && (
-                        <button 
-                          type="button"
-                          onClick={() => handleRemoveBOMRow(index)}
-                          className="absolute top-2 right-2 text-gallery-muted hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <label className="text-[8px] uppercase tracking-widest text-gallery-muted font-bold">
-                            Pilih Bahan Baku
-                          </label>
-                          <select 
-                            required
-                            value={item.materialId}
-                            onChange={(e) => handleBOMChange(index, 'materialId', e.target.value)}
-                            className="w-full bg-gallery-split border-[0.5px] border-gallery-line px-2 py-1 text-[11px] text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold uppercase tracking-wider"
-                          >
-                            <option value="">-- Pilih --</option>
-                            {materials.map(m => (
-                              <option key={m.id} value={m.id}>
-                                {m.sku} - {m.name} ({m.unit})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        
-                        <div className="space-y-1">
-                          <label className="text-[8px] uppercase tracking-widest text-gallery-muted font-bold">
-                            Jumlah yang Dibutuhkan
-                          </label>
-                          <input 
-                            type="number" 
-                            step="any"
-                            min="0.001"
-                            required
-                            placeholder="e.g. 2.5"
-                            value={item.quantityRequired || ''}
-                            onChange={(e) => handleBOMChange(index, 'quantityRequired', Number(e.target.value))}
-                            className="w-full bg-gallery-split border-[0.5px] border-gallery-line px-2 py-1 text-[11px] text-gallery-dark focus:outline-none focus:border-gallery-dark font-bold"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[8px] uppercase tracking-widest text-gallery-muted font-bold">
-                          Keterangan Bagian Produk (cth: untuk bagian luar)
-                        </label>
-                        <input 
-                          type="text" 
-                          placeholder="cth. Untuk bagian luar, lapisan dalam..."
-                          value={item.notes}
-                          onChange={(e) => handleBOMChange(index, 'notes', e.target.value)}
-                          className="w-full bg-gallery-split border-[0.5px] border-gallery-line px-2 py-1 text-[11px] text-gallery-dark focus:outline-none focus:border-gallery-dark"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <button 
-                type="submit" 
-                className="w-full bg-gallery-dark text-gallery-base py-2.5 text-xs font-semibold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-200 mt-2"
-              >
-                Simpan Rancangan Produk
-              </button>
-            </form>
-          </div>
-        )}
+        {/* CASE A: Create Innovation Panel - Moved to Dialog Modal */}
 
         {/* CASE B: Product Details & BOM Checker Panel */}
         {selectedProduct && (
@@ -545,7 +408,7 @@ function ProductsPage() {
         )}
 
         {/* DEFAULT STATE: Studio Concept Card */}
-        {!selectedProduct && !isAdding && (
+        {!selectedProduct && (
           <div className="bg-gallery-split border-[0.5px] border-gallery-line p-6 space-y-4">
             <h3 className="font-serif text-lg tracking-tight text-gallery-dark uppercase border-b-[0.5px] border-gallery-line pb-2.5">
               INFORMASI DETAIL PRODUK
@@ -572,6 +435,150 @@ function ProductsPage() {
 
       </div>
     </div>
+
+    {/* MODAL POPUP DIALOG FORM FOR ADDING PRODUCT (SHADCN / RADIX PRIMITIVE) */}
+    <Dialog open={isAdding} onOpenChange={setIsAdding}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>FORM PRODUK BARU</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmitProduct} className="space-y-4 flex flex-col overflow-hidden">
+          {/* Scrollable inputs section to fit 1 page */}
+          <div className="overflow-y-auto pr-2 space-y-4 max-h-[55vh] md:max-h-[60vh] custom-scrollbar flex-1">
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Nama Produk*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="cth. Dompet Kulit Minimalis"
+                value={newProduct.name}
+                onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Link Foto / Gambar Produk
+              </label>
+              <input 
+                type="text" 
+                placeholder="e.g. https://... (Optional)"
+                value={newProduct.imageUrl || ''}
+                onChange={(e) => setNewProduct({...newProduct, imageUrl: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Deskripsi & Penjelasan Produk
+              </label>
+              <textarea 
+                rows={2}
+                placeholder="Tuliskan detail produk, gaya, atau catatan pembuatan di sini..."
+                value={newProduct.description || ''}
+                onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans resize-none"
+              />
+            </div>
+
+            {/* Dynamic BOM ingredient selectors */}
+            <div className="space-y-3 pt-2">
+              <div className="flex justify-between items-center border-b-[0.5px] border-gallery-line pb-1.5">
+                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-dark font-bold">
+                  DAFTAR KEBUTUHAN BAHAN BAKU (BOM)
+                </label>
+                <button 
+                  type="button"
+                  onClick={handleAddBOMRow}
+                  className="text-[9px] font-bold text-gallery-dark uppercase tracking-widest flex items-center gap-1 hover:opacity-80 cursor-pointer"
+                >
+                  <PlusCircle size={12} /> Tambah Bahan Baku
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                {selectedBOMItems.map((item, index) => (
+                  <div key={index} className="bg-gallery-base p-3 border-[0.5px] border-gallery-line space-y-2 relative">
+                    {selectedBOMItems.length > 1 && (
+                      <button 
+                        type="button"
+                        onClick={() => handleRemoveBOMRow(index)}
+                        className="absolute top-2 right-2 text-gallery-muted hover:text-red-600 transition-colors cursor-pointer"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[8px] uppercase tracking-widest text-gallery-muted font-bold">
+                          Pilih Bahan Baku
+                        </label>
+                        <select 
+                          required
+                          value={item.materialId}
+                          onChange={(e) => handleBOMChange(index, 'materialId', e.target.value)}
+                          className="w-full bg-gallery-split border-[0.5px] border-gallery-line px-2 py-1 text-[11px] text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold uppercase tracking-wider"
+                        >
+                          <option value="">-- Pilih --</option>
+                          {materials.map(m => (
+                            <option key={m.id} value={m.id}>
+                              {m.sku} - {m.name} ({m.unit})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-[8px] uppercase tracking-widest text-gallery-muted font-bold">
+                          Jumlah yang Dibutuhkan
+                        </label>
+                        <input 
+                          type="number" 
+                          step="any"
+                          min="0.001"
+                          required
+                          placeholder="e.g. 2.5"
+                          value={item.quantityRequired || ''}
+                          onChange={(e) => handleBOMChange(index, 'quantityRequired', Number(e.target.value))}
+                          className="w-full bg-gallery-split border-[0.5px] border-gallery-line px-2 py-1 text-[11px] text-gallery-dark focus:outline-none focus:border-gallery-dark font-bold font-sans"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[8px] uppercase tracking-widest text-gallery-muted font-bold">
+                        Keterangan Bagian Produk (cth: untuk bagian luar)
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="cth. Untuk bagian luar, lapisan dalam..."
+                        value={item.notes || ''}
+                        onChange={(e) => handleBOMChange(index, 'notes', e.target.value)}
+                        className="w-full bg-gallery-split border-[0.5px] border-gallery-line px-2 py-1 text-[11px] text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            className="w-full bg-gallery-dark text-gallery-base py-2.5 text-xs font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity active:scale-95 duration-200 mt-2 cursor-pointer shrink-0"
+          >
+            Simpan Rancangan Produk
+          </button>
+        </form>
+      </DialogContent>
+    </Dialog>
+
   </div>
   )
 }
