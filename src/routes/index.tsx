@@ -1,0 +1,348 @@
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { getDashboardStats } from '../lib/dashboard.functions'
+import { Layers, Cpu, AlertTriangle, History, ArrowRight } from 'lucide-react'
+
+export const Route = createFileRoute('/')({
+  loader: async () => {
+    const stats = await getDashboardStats()
+    return { stats }
+  },
+  component: DashboardPage,
+})
+
+function DashboardPage() {
+  const { stats } = Route.useLoaderData()
+
+  return (
+    <div className="space-y-10 rise-in">
+      {/* HEADER SECTION (Magazine Header Style) */}
+      <div className="border-b-[0.5px] border-gallery-line pb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-gallery-muted font-bold">
+            PAPAN KENDALI UTAMA
+          </div>
+          <h2 className="text-4xl font-serif tracking-tight text-gallery-dark uppercase mt-1">
+            RINGKASAN AKTIVITAS & INVENTARIS
+          </h2>
+        </div>
+        <div className="text-right text-[11px] font-semibold text-gallery-muted tracking-wider uppercase border-[0.5px] border-gallery-line bg-gallery-split px-4 py-2 select-none">
+          {new Date().toLocaleDateString('id-ID', { 
+            weekday: 'long', 
+            day: 'numeric', 
+            month: 'long', 
+            year: 'numeric' 
+          })}
+        </div>
+      </div>
+
+      {/* KPI METRIC CARDS (Geometric Division Layout) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 border-[0.5px] border-gallery-line bg-gallery-split divide-y md:divide-y-0 md:divide-x divide-gallery-line">
+        {/* Metric 1 */}
+        <div className="p-8 flex flex-col justify-between min-h-[160px]">
+          <div>
+            <div className="flex items-center justify-between text-gallery-muted mb-4">
+              <span className="text-[9px] font-bold uppercase tracking-wider">TOTAL BAHAN BAKU</span>
+              <Layers size={16} />
+            </div>
+            <div className="text-4xl font-serif text-gallery-dark">
+              {stats.totalMaterials} <span className="text-xs font-sans font-semibold text-gallery-muted uppercase">Item</span>
+            </div>
+          </div>
+          <p className="text-[9px] text-gallery-muted tracking-wide mt-6 font-medium uppercase">
+            Terbagi dalam {Object.keys(stats.typeStats).length} tipe kategori bahan
+          </p>
+        </div>
+
+        {/* Metric 2 */}
+        <div className="p-8 flex flex-col justify-between min-h-[160px]">
+          <div>
+            <div className="flex items-center justify-between text-gallery-muted mb-4">
+              <span className="text-[9px] font-bold uppercase tracking-wider">DESAIN PRODUK (BOM)</span>
+              <Cpu size={16} />
+            </div>
+            <div className="text-4xl font-serif text-gallery-dark">
+              {stats.totalProducts} <span className="text-xs font-sans font-semibold text-gallery-muted uppercase">Formula</span>
+            </div>
+          </div>
+          <p className="text-[9px] text-gallery-muted tracking-wide mt-6 font-medium uppercase">
+            Kombinasi formula Bill of Materials aktif
+          </p>
+        </div>
+
+        {/* Metric 3 */}
+        <div className="p-8 flex flex-col justify-between min-h-[160px]">
+          <div>
+            <div className="flex items-center justify-between text-gallery-muted mb-4">
+              <span className="text-[9px] font-bold uppercase tracking-wider">PERINGATAN STOK</span>
+              <AlertTriangle className={stats.lowStockMaterials.length > 0 ? "text-amber-600 animate-pulse" : "text-gallery-muted"} size={16} />
+            </div>
+            <div className="text-4xl font-serif text-gallery-dark">
+              {stats.lowStockMaterials.length} <span className="text-xs font-sans font-semibold text-gallery-muted uppercase">Kritis</span>
+            </div>
+          </div>
+          <p className="text-[9px] text-gallery-muted tracking-wide mt-6 font-medium uppercase">
+            Item dengan stok kurang dari 5 unit
+          </p>
+        </div>
+      </div>
+
+      {/* SPLIT LAYOUT */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* LEFT COLUMN: Capacities & Distribution (7/12) */}
+        <div className="lg:col-span-7 space-y-8">
+          {/* Section: Crafting Capacity based on BOM */}
+          <div className="border-[0.5px] border-gallery-line bg-gallery-split p-6">
+            <div className="border-b-[0.5px] border-gallery-line pb-3 mb-4 flex justify-between items-center">
+              <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
+                ESTIMASI KAPASITAS PRODUKSI MAKSIMAL (BOM)
+              </h3>
+              <Link to="/products" className="text-[9px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors">
+                KELOLA <ArrowRight size={10} />
+              </Link>
+            </div>
+            
+            <p className="text-[10px] text-gallery-muted uppercase tracking-wider font-semibold mb-4 leading-relaxed">
+              Batas atas kuantitas produk yang dapat diproduksi secara real-time berdasarkan sisa bahan baku saat ini.
+            </p>
+
+            {stats.productCapacities.length === 0 ? (
+              <div className="p-8 text-center text-xs tracking-wider text-gallery-muted uppercase border-[0.5px] border-dashed border-gallery-line font-semibold">
+                Belum ada produk terdaftar.
+              </div>
+            ) : (
+              <div className="divide-y divide-gallery-line font-sans">
+                {stats.productCapacities.map((product) => {
+                  const hasDeficits = product.materialDeficits.length > 0
+                  return (
+                    <div key={product.id} className="py-4.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        {product.imageUrl ? (
+                          <img 
+                            src={product.imageUrl} 
+                            alt={product.name} 
+                            className="w-12 h-12 object-cover border-[0.5px] border-gallery-line shrink-0" 
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-gallery-base flex items-center justify-center border-[0.5px] border-gallery-line text-gallery-muted font-bold font-serif shrink-0 uppercase select-none">
+                            {product.name.substring(0, 2)}
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="text-sm font-serif font-bold uppercase text-gallery-dark tracking-wide">
+                            {product.name}
+                          </h4>
+                          <p className="text-[9px] text-gallery-muted font-bold uppercase mt-0.5">
+                            {product.materialsCount} BAHAN BAKU DIKONSUMSI
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:items-end shrink-0">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 ${
+                          product.maxUnitsCanProduce > 0 
+                            ? 'bg-gallery-dark text-gallery-base' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {product.maxUnitsCanProduce > 0 
+                            ? `${product.maxUnitsCanProduce} UNIT SIAP CRAFT` 
+                            : 'STOK BAHAN TIDAK CUKUP'}
+                        </span>
+
+                        {hasDeficits && (
+                          <span className="text-[8px] text-red-700 mt-1 uppercase font-bold tracking-wide leading-tight max-w-[200px] sm:text-right">
+                            Kekurangan: {product.materialDeficits.map(d => `${d.sku} (${d.required - d.available} ${d.unit})`).join(', ')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Section: Material Categories Distribution */}
+          <div className="border-[0.5px] border-gallery-line bg-gallery-split p-6">
+            <div className="border-b-[0.5px] border-gallery-line pb-3 mb-4">
+              <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
+                SEBARAN KATEGORI INVENTARIS
+              </h3>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 font-sans">
+              {Object.entries(stats.typeStats).map(([type, data]) => {
+                return (
+                  <div key={type} className="bg-gallery-base p-4 border-[0.5px] border-gallery-line flex flex-col justify-between min-h-[90px]">
+                    <div>
+                      <div className="text-[8px] font-bold uppercase tracking-widest text-gallery-muted">
+                        Kategori
+                      </div>
+                      <div className="text-[11px] font-serif font-bold tracking-wider text-gallery-dark uppercase mt-0.5">
+                        {type}
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-baseline justify-between border-t border-gallery-line/50 pt-2">
+                      <span className="text-[9px] text-gallery-muted font-semibold uppercase">
+                        {data.count} SKU
+                      </span>
+                      <span className="text-xs font-bold text-gallery-dark">
+                        {data.stock.toLocaleString('id-ID')} <span className="text-[8px] text-gallery-muted font-semibold uppercase">Unit</span>
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Low Stock Alerts, Quick Actions & Recent Activity (5/12) */}
+        <div className="lg:col-span-5 space-y-8">
+          
+          {/* Section: Critical Materials (Restock Needed) */}
+          <div className="border-[0.5px] border-gallery-line bg-gallery-split p-6">
+            <div className="border-b-[0.5px] border-gallery-line pb-3 mb-4 flex justify-between items-center">
+              <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
+                BAHAN KRITIS (RESTOCK SEGERA)
+              </h3>
+              <Link to="/materials" className="text-[9px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors">
+                LIHAT <ArrowRight size={10} />
+              </Link>
+            </div>
+
+            {stats.lowStockMaterials.length === 0 ? (
+              <div className="p-4 text-center text-xs tracking-wider text-green-800 uppercase bg-green-100/50 border-[0.5px] border-green-200 font-semibold font-sans">
+                ✓ Seluruh bahan baku berada di atas batas kritis.
+              </div>
+            ) : (
+              <div className="space-y-3 font-sans">
+                {stats.lowStockMaterials.map((material) => (
+                  <Link
+                    key={material.id}
+                    to="/materials"
+                    search={{ search: material.sku }}
+                    className="block bg-gallery-base hover:bg-gallery-base/80 border-[0.5px] border-gallery-line p-3 transition-all no-underline group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[8px] font-bold tracking-wider uppercase bg-gallery-dark text-gallery-base px-1.5 py-0.5">
+                            {material.sku}
+                          </span>
+                          <span className="text-[8px] font-bold tracking-wider uppercase text-gallery-muted bg-gallery-split border-[0.5px] border-gallery-line px-1 py-0.25">
+                            {material.type}
+                          </span>
+                        </div>
+                        <div className="text-xs font-serif font-bold uppercase mt-1.5 text-gallery-dark group-hover:text-gallery-dark/70">
+                          {material.name}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-bold text-red-700">
+                          {material.stock}
+                          <span className="text-[8px] text-gallery-muted font-bold uppercase ml-0.5">
+                            {material.unit}
+                          </span>
+                        </div>
+                        <span className="text-[7px] bg-red-100 text-red-800 font-bold px-1.5 py-0.25 tracking-widest uppercase mt-1 inline-block">
+                          LIMIT
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Section: Recent Stock History */}
+          <div className="border-[0.5px] border-gallery-line bg-gallery-split p-6">
+            <div className="border-b-[0.5px] border-gallery-line pb-3 mb-4 flex justify-between items-center">
+              <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
+                LOG AKTIVITAS (7 HARI: {stats.logsLast7Days} LOG)
+              </h3>
+              <Link to="/logs" className="text-[9px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors">
+                RIWAYAT <ArrowRight size={10} />
+              </Link>
+            </div>
+
+            {stats.recentLogs.length === 0 ? (
+              <div className="p-6 text-center text-xs tracking-wider text-gallery-muted uppercase border-[0.5px] border-dashed border-gallery-line font-semibold">
+                Belum ada catatan aktivitas perubahan stok.
+              </div>
+            ) : (
+              <div className="space-y-4 font-sans">
+                {stats.recentLogs.map((log) => {
+                  const formattedDate = new Date(log.createdAt).toLocaleString('id-ID', {
+                    day: 'numeric',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
+                  const isPositive = log.quantity > 0
+                  return (
+                    <div key={log.id} className="text-xs border-b border-gallery-line/50 pb-3 last:border-0 last:pb-0">
+                      <div className="flex items-center justify-between text-gallery-muted font-bold text-[8px] uppercase tracking-wide">
+                        <span>{formattedDate}</span>
+                        <span className={`px-1 py-0.25 font-bold ${
+                          log.type === 'INCOMING' ? 'bg-green-50 text-green-800' :
+                          log.type === 'OUTGOING' ? 'bg-red-50 text-red-800' : 'bg-yellow-50 text-yellow-800'
+                        }`}>
+                          {log.type === 'INCOMING' ? 'MASUK' : log.type === 'OUTGOING' ? 'KELUAR' : 'PENYESUAIAN'}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 flex justify-between items-baseline gap-2">
+                        <span className="font-serif text-gallery-dark uppercase font-bold text-[12px] truncate">
+                          {log.material.name}
+                        </span>
+                        <span className={`font-bold shrink-0 ${isPositive ? 'text-green-700' : 'text-red-700'}`}>
+                          {isPositive ? `+${log.quantity}` : log.quantity}{' '}
+                          <span className="text-[8px] text-gallery-muted font-semibold uppercase">{log.material.unit}</span>
+                        </span>
+                      </div>
+                      {log.notes && (
+                        <div className="mt-1 text-[9.5px] text-gallery-muted italic leading-relaxed">
+                          "{log.notes}"
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Section: Quick Access Buttons */}
+          <div className="border-[0.5px] border-gallery-line bg-gallery-split p-6">
+            <div className="border-b-[0.5px] border-gallery-line pb-3 mb-4">
+              <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
+                AKSES CEPAT INTERFAS
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3 font-sans">
+              <Link
+                to="/materials"
+                className="flex flex-col justify-between p-4 bg-gallery-base hover:bg-gallery-base/80 border-[0.5px] border-gallery-line transition-all no-underline group min-h-[80px]"
+              >
+                <span className="text-[7.5px] font-bold text-gallery-muted uppercase tracking-widest leading-none">INVENTARIS</span>
+                <span className="text-xs font-serif font-bold text-gallery-dark uppercase mt-2 group-hover:underline flex items-center gap-1.5">
+                  BAHAN BAKU <ArrowRight size={12} className="opacity-70" />
+                </span>
+              </Link>
+              <Link
+                to="/products"
+                className="flex flex-col justify-between p-4 bg-gallery-base hover:bg-gallery-base/80 border-[0.5px] border-gallery-line transition-all no-underline group min-h-[80px]"
+              >
+                <span className="text-[7.5px] font-bold text-gallery-muted uppercase tracking-widest leading-none">FORMULA</span>
+                <span className="text-xs font-serif font-bold text-gallery-dark uppercase mt-2 group-hover:underline flex items-center gap-1.5">
+                  PRODUK & BOM <ArrowRight size={12} className="opacity-70" />
+                </span>
+              </Link>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  )
+}

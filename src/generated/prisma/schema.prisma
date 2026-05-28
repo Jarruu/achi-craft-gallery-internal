@@ -1,0 +1,67 @@
+generator client {
+  provider     = "prisma-client-js"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Todo {
+  id        Int      @id @default(autoincrement())
+  title     String
+  createdAt DateTime @default(now())
+}
+
+model Material {
+  id           String            @id @default(uuid())
+  sku          String            @unique
+  name         String
+  type         String // "LEATHER", "FABRIC", "GLUE", "ZIPPER", "ACCESSORY"
+  category     String // e.g. "Synthetic", "Grade A Fabric", "Standard Brass", etc.
+  quality      String // e.g. "Premium", "Grade A", "Standard"
+  size         String // e.g. "per feet", "per meter", "100ml", "Universal"
+  stock        Float             @default(0) // Float to support fractional stock (e.g. 15.5 meters)
+  unit         String // "feet", "meter", "ml", "pcs", "set"
+  colorPattern String // e.g. "Tan Python", "Black Matte", "Brass Gold"
+  imageUrl     String? // Visual picture URL or null
+  expiredAt    DateTime? // Perishable check (especially for glue)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  stockLogs    StockLog[]
+  products     ProductMaterial[]
+}
+
+model StockLog {
+  id         String   @id @default(uuid())
+  materialId String
+  quantity   Float // Stock delta (positive for add, negative for remove)
+  type       String // "INCOMING", "OUTGOING", "ADJUSTMENT"
+  notes      String? // Reason or description of change
+  createdAt  DateTime @default(now())
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+}
+
+model Product {
+  id          String            @id @default(uuid())
+  name        String
+  description String?
+  imageUrl    String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  materials   ProductMaterial[]
+}
+
+model ProductMaterial {
+  id               String   @id @default(uuid())
+  productId        String
+  materialId       String
+  quantityRequired Float // Raw material quantity needed for 1 unit of product
+  notes            String? // Special assembly notes
+  createdAt        DateTime @default(now())
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  material         Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, materialId])
+}

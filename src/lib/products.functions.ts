@@ -1,0 +1,71 @@
+import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
+
+const createProductSchema = z.object({
+  name: z.string().min(2),
+  description: z.string().optional().nullable(),
+  imageUrl: z.string().optional().nullable(),
+  materials: z.array(
+    z.object({
+      materialId: z.string(),
+      quantityRequired: z.number().positive(),
+      notes: z.string().optional().nullable(),
+    })
+  ).min(1, "Product innovation must include at least one raw material."),
+})
+
+export const getProducts = createServerFn({ method: 'GET' })
+  .handler(async () => {
+    const { prisma } = await import('#/db.server')
+    return await prisma.product.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        materials: {
+          include: {
+            material: true,
+          },
+        },
+      },
+    })
+  })
+
+export const createProduct = createServerFn({ method: 'POST' })
+  .inputValidator(createProductSchema)
+  .handler(async ({ data }) => {
+    const { prisma } = await import('#/db.server')
+    const { name, description, imageUrl, materials } = data
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Create the product innovation
+      const product = await tx.product.create({
+        data: {
+          name,
+          description,
+          imageUrl,
+        },
+      })
+
+      // 2. Create the Bill of Materials (BOM) links
+      const bomData = materials.map((item) => ({
+        productId: product.id,
+        materialId: item.materialId,
+        quantityRequired: item.quantityRequired,
+        notes: item.notes || null,
+      }))
+
+      await tx.productMaterial.createMany({
+        data: bomData,
+      })
+
+      return await tx.product.findUnique({
+        where: { id: product.id },
+        include: {
+          materials: {
+            include: {
+              material: true,
+            },
+          },
+        },
+      })
+    })
+  })
