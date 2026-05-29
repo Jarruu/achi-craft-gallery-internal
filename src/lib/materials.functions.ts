@@ -163,3 +163,33 @@ export const deleteMaterial = createServerFn({ method: 'POST' })
       where: { id },
     })
   })
+
+const updateMaterialSchema = z.object({
+  id: z.string(),
+  sku: z.string().min(3),
+  name: z.string().min(2),
+  type: z.string(),
+  category: z.string().min(2),
+  quality: z.string().min(2),
+  size: z.string().min(1),
+  unit: z.string(),
+  colorPattern: z.string().min(2),
+  imageUrl: z.string().optional().nullable(),
+  expiredAt: z.string().optional().nullable(),
+})
+
+export const updateMaterial = createServerFn({ method: 'POST' })
+  .inputValidator(updateMaterialSchema)
+  .handler(async ({ data }) => {
+    const { prisma } = await import('#/db.server')
+    const { id, expiredAt, ...rest } = data
+    const parsedExpiredAt = expiredAt ? new Date(expiredAt) : null
+
+    return await prisma.material.update({
+      where: { id },
+      data: {
+        ...rest,
+        expiredAt: parsedExpiredAt,
+      },
+    })
+  })

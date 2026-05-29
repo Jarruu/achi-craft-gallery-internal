@@ -10,7 +10,13 @@ declare global {
   var __prisma: PrismaClient | undefined
 }
 
-export const prisma = globalThis.__prisma || new PrismaClient({ adapter })
+export const prisma = (() => {
+  const existing = globalThis.__prisma as any
+  if (existing && 'typeOption' in existing) {
+    return existing as PrismaClient
+  }
+  return new PrismaClient({ adapter })
+})()
 
 if (process.env.NODE_ENV !== 'production') {
   globalThis.__prisma = prisma

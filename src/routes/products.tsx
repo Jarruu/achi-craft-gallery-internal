@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { getProducts, createProduct } from '../lib/products.functions'
+import { getProducts, createProduct, updateProduct, deleteProduct } from '../lib/products.functions'
 import { getMaterials } from '../lib/materials.functions'
 import { 
   Plus, 
@@ -13,7 +13,8 @@ import {
   PlusCircle, 
   MinusCircle, 
   FileText,
-  X
+  X,
+  Pencil
 } from 'lucide-react'
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog'
@@ -67,6 +68,113 @@ function ProductsPage() {
       [key]: value
     }
     setSelectedBOMItems(next)
+  }
+
+  // Edit & Delete Product states & handlers
+  const [isEditing, setIsEditing] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [editProductData, setEditProductData] = useState({
+    id: '',
+    name: '',
+    description: '',
+    imageUrl: '',
+  })
+  const [editBOMItems, setEditBOMItems] = useState<Array<{
+    materialId: string
+    quantityRequired: number
+    notes: string
+  }>>([])
+
+  const handleAddEditBOMRow = () => {
+    setEditBOMItems([...editBOMItems, { materialId: '', quantityRequired: 1, notes: '' }])
+  }
+
+  const handleRemoveEditBOMRow = (index: number) => {
+    if (editBOMItems.length === 1) return
+    const next = [...editBOMItems]
+    next.splice(index, 1)
+    setEditBOMItems(next)
+  }
+
+  const handleEditBOMChange = (index: number, key: string, value: any) => {
+    const next = [...editBOMItems]
+    next[index] = {
+      ...next[index],
+      [key]: value
+    }
+    setEditBOMItems(next)
+  }
+
+  const startEdit = (p: any) => {
+    setEditProductData({
+      id: p.id,
+      name: p.name,
+      description: p.description || '',
+      imageUrl: p.imageUrl || '',
+    })
+    setEditBOMItems(p.materials.map((pm: any) => ({
+      materialId: pm.materialId,
+      quantityRequired: pm.quantityRequired,
+      notes: pm.notes || '',
+    })))
+    setIsEditing(true)
+  }
+
+  const handleEditProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const filteredBOM = editBOMItems.filter(item => item.materialId !== '')
+    if (filteredBOM.length === 0) {
+      toast.error('Gagal Menyimpan', {
+        description: 'Harap tambahkan minimal satu bahan baku untuk produk ini.'
+      })
+      return
+    }
+
+    try {
+      const updated = await updateProduct({
+        data: {
+          id: editProductData.id,
+          name: editProductData.name,
+          description: editProductData.description || null,
+          imageUrl: editProductData.imageUrl || null,
+          materials: filteredBOM.map(item => ({
+            materialId: item.materialId,
+            quantityRequired: Number(item.quantityRequired),
+            notes: item.notes || null
+          }))
+        }
+      })
+
+      toast.success('Rancangan Produk Diperbarui', {
+        description: `Produk ${editProductData.name} berhasil diperbarui.`
+      })
+
+      setIsEditing(false)
+      setSelectedProduct(updated)
+      navigate({ to: '/products' })
+    } catch (err: any) {
+      toast.error('Gagal Memperbarui Produk', {
+        description: err.message || 'Terjadi kesalahan.'
+      })
+    }
+  }
+
+  const handleDeleteProduct = async () => {
+    if (!selectedProduct) return
+    try {
+      await deleteProduct({ data: { id: selectedProduct.id } })
+      toast.success('Rancangan Produk Dihapus', {
+        description: `Rancangan produk ${selectedProduct.name} telah berhasil dihapus secara permanen.`
+      })
+      setSelectedProduct(null)
+      setIsDeleteDialogOpen(false)
+      navigate({ to: '/products' })
+    } catch (err: any) {
+      toast.error('Gagal Menghapus Produk', {
+        description: err.message || 'Terjadi kesalahan.'
+      })
+    }
   }
 
   // Handle Form Submission
@@ -327,6 +435,24 @@ function ProductsPage() {
                 <h3 className="font-serif text-2xl tracking-tight text-gallery-dark mt-0.5">
                   {selectedProduct.name}
                 </h3>
+                {/* Actions inline */}
+                <div className="flex items-center gap-3 mt-3">
+                  <button 
+                    onClick={() => startEdit(selectedProduct)}
+                    className="flex items-center gap-1.5 text-[10px] font-bold text-gallery-dark uppercase tracking-wider hover:underline transition-all cursor-pointer"
+                  >
+                    <Pencil size={11} />
+                    <span>Edit</span>
+                  </button>
+                  <span className="text-gallery-muted text-[10px]">•</span>
+                  <button 
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    className="flex items-center gap-1.5 text-[10px] font-bold text-red-700 uppercase tracking-wider hover:underline transition-all cursor-pointer"
+                  >
+                    <Trash2 size={11} />
+                    <span>Hapus</span>
+                  </button>
+                </div>
               </div>
               <button 
                 onClick={() => setSelectedProduct(null)}
@@ -576,6 +702,181 @@ function ProductsPage() {
             Simpan Rancangan Produk
           </button>
         </form>
+      </DialogContent>
+    </Dialog>
+
+    {/* MODAL POPUP DIALOG FORM FOR EDITING PRODUCT */}
+    <Dialog open={isEditing} onOpenChange={setIsEditing}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>EDIT RANCANGAN PRODUK</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleEditProductSubmit} className="space-y-4 flex flex-col overflow-hidden">
+          {/* Scrollable inputs section to fit 1 page */}
+          <div className="overflow-y-auto pr-2 space-y-4 max-h-[55vh] md:max-h-[60vh] custom-scrollbar flex-1">
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Nama Produk*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="cth. Dompet Kulit Minimalis"
+                value={editProductData.name}
+                onChange={(e) => setEditProductData({...editProductData, name: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Link Foto / Gambar Produk
+              </label>
+              <input 
+                type="text" 
+                placeholder="e.g. https://... (Optional)"
+                value={editProductData.imageUrl || ''}
+                onChange={(e) => setEditProductData({...editProductData, imageUrl: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Deskripsi & Penjelasan Produk
+              </label>
+              <textarea 
+                rows={2}
+                placeholder="Tuliskan detail produk, gaya, atau catatan pembuatan di sini..."
+                value={editProductData.description || ''}
+                onChange={(e) => setEditProductData({...editProductData, description: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans resize-none"
+              />
+            </div>
+
+            {/* Dynamic BOM ingredient selectors */}
+            <div className="space-y-3 pt-2">
+              <div className="flex justify-between items-center border-b-[0.5px] border-gallery-line pb-1.5">
+                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-dark font-bold">
+                  DAFTAR KEBUTUHAN BAHAN BAKU (BOM)
+                </label>
+                <button 
+                  type="button"
+                  onClick={handleAddEditBOMRow}
+                  className="text-[9px] font-bold text-gallery-dark uppercase tracking-widest flex items-center gap-1 hover:opacity-80 cursor-pointer"
+                >
+                  <PlusCircle size={12} /> Tambah Bahan Baku
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                {editBOMItems.map((item, index) => (
+                  <div key={index} className="bg-gallery-base p-3 border-[0.5px] border-gallery-line space-y-2 relative">
+                    {editBOMItems.length > 1 && (
+                      <button 
+                        type="button"
+                        onClick={() => handleRemoveEditBOMRow(index)}
+                        className="absolute top-2 right-2 text-gallery-muted hover:text-red-600 transition-colors cursor-pointer"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[8px] uppercase tracking-widest text-gallery-muted font-bold">
+                          Pilih Bahan Baku
+                        </label>
+                        <select 
+                          required
+                          value={item.materialId}
+                          onChange={(e) => handleEditBOMChange(index, 'materialId', e.target.value)}
+                          className="w-full bg-gallery-split border-[0.5px] border-gallery-line px-2 py-1 text-[11px] text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold uppercase tracking-wider"
+                        >
+                          <option value="">-- Pilih --</option>
+                          {materials.map(m => (
+                            <option key={m.id} value={m.id}>
+                              {m.sku} - {m.name} ({m.unit})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-[8px] uppercase tracking-widest text-gallery-muted font-bold">
+                          Jumlah yang Dibutuhkan
+                        </label>
+                        <input 
+                          type="number" 
+                          step="any"
+                          min="0.001"
+                          required
+                          placeholder="e.g. 2.5"
+                          value={item.quantityRequired || ''}
+                          onChange={(e) => handleEditBOMChange(index, 'quantityRequired', Number(e.target.value))}
+                          className="w-full bg-gallery-split border-[0.5px] border-gallery-line px-2 py-1 text-[11px] text-gallery-dark focus:outline-none focus:border-gallery-dark font-bold font-sans"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[8px] uppercase tracking-widest text-gallery-muted font-bold">
+                        Keterangan Bagian Produk (cth: untuk bagian luar)
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="cth. Untuk bagian luar, lapisan dalam..."
+                        value={item.notes || ''}
+                        onChange={(e) => handleEditBOMChange(index, 'notes', e.target.value)}
+                        className="w-full bg-gallery-split border-[0.5px] border-gallery-line px-2 py-1 text-[11px] text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            className="w-full bg-gallery-dark text-gallery-base py-2.5 text-xs font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity active:scale-95 duration-200 mt-2 cursor-pointer shrink-0"
+          >
+            Simpan Perubahan
+          </button>
+        </form>
+      </DialogContent>
+    </Dialog>
+
+    {/* MODAL CONFIRMATION DIALOG FOR DELETING PRODUCT */}
+    <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-red-700 font-serif">HAPUS RANCANGAN PRODUK</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <p className="text-xs text-gallery-dark leading-relaxed">
+            Apakah Anda yakin ingin menghapus rancangan produk <strong className="font-bold">{selectedProduct?.name}</strong> secara permanen? Tindakan ini tidak dapat dibatalkan dan semua data cetak biru kebutuhan bahan baku (BOM) terkait akan ikut terhapus.
+          </p>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              className="px-4 py-2 border-[0.5px] border-gallery-line text-xs font-semibold uppercase tracking-wider text-gallery-muted hover:border-gallery-dark hover:text-gallery-dark duration-200 cursor-pointer"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteProduct}
+              className="px-4 py-2 bg-red-700 text-gallery-base text-xs font-semibold uppercase tracking-wider hover:bg-red-800 duration-200 cursor-pointer"
+            >
+              Hapus Permanen
+            </button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
 

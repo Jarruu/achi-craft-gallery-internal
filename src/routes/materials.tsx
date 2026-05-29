@@ -6,8 +6,14 @@ import {
   getMaterials, 
   createMaterial, 
   updateStock, 
-  deleteMaterial 
+  deleteMaterial,
+  updateMaterial
 } from '../lib/materials.functions'
+import {
+  getDropdownOptions,
+  addDropdownOption,
+  deleteDropdownOption
+} from '../lib/options.functions'
 import { 
   Search, 
   Plus, 
@@ -19,13 +25,17 @@ import {
   ChevronRight,
   TrendingUp,
   X,
-  Layers
+  Layers,
+  Settings,
+  Pencil
 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from '../components/ui/dialog'
 
 // Schema for route query params
@@ -47,16 +57,23 @@ export const Route = createFileRoute('/materials')({
     limit: search.limit,
   }),
   loader: async ({ deps }) => {
-    const { items: materials, totalCount } = await getMaterials({ 
-      data: {
-        search: deps.search,
-        type: deps.type,
-        category: deps.category,
-        page: deps.page || 1,
-        limit: deps.limit || 10,
-      } 
-    })
-    return { materials, totalCount }
+    const [materialsResult, options] = await Promise.all([
+      getMaterials({ 
+        data: {
+          search: deps.search,
+          type: deps.type,
+          category: deps.category,
+          page: deps.page || 1,
+          limit: deps.limit || 10,
+        } 
+      }),
+      getDropdownOptions()
+    ])
+    return { 
+      materials: materialsResult.items, 
+      totalCount: materialsResult.totalCount,
+      options 
+    }
   },
   component: MaterialsPage,
 })
@@ -163,7 +180,7 @@ function MaterialVisual({ type, colorPattern, imageUrl }: { type: string, colorP
 }
 
 function MaterialsPage() {
-  const { materials, totalCount } = Route.useLoaderData()
+  const { materials, totalCount, options } = Route.useLoaderData()
   const searchParams = useSearch({ from: '/materials' })
   const navigate = useNavigate()
 
@@ -184,20 +201,189 @@ function MaterialsPage() {
   // State management
   const [selectedMaterial, setSelectedMaterial] = useState<any>(null)
   const [isAdding, setIsAdding] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table')
-  const [newMaterial, setNewMaterial] = useState({
+
+  // Edit Material States & Handlers
+  const [isEditing, setIsEditing] = useState(false)
+  const [editMaterialData, setEditMaterialData] = useState({
+    id: '',
     sku: '',
     name: '',
-    type: 'LEATHER',
+    type: '',
     category: '',
-    quality: 'Grade A',
+    quality: '',
     size: '',
-    stock: 0,
-    unit: 'feet',
+    unit: '',
     colorPattern: '',
     imageUrl: '',
     expiredAt: '',
   })
+
+  const startEdit = (m: any) => {
+    setEditMaterialData({
+      id: m.id,
+      sku: m.sku,
+      name: m.name,
+      type: m.type,
+      category: m.category,
+      quality: m.quality,
+      size: m.size,
+      unit: m.unit,
+      colorPattern: m.colorPattern,
+      imageUrl: m.imageUrl || '',
+      expiredAt: m.expiredAt ? new Date(m.expiredAt).toISOString().split('T')[0] : '',
+    })
+    setIsEditing(true)
+  }
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const updated = await updateMaterial({
+        data: {
+          id: editMaterialData.id,
+          sku: editMaterialData.sku.toUpperCase(),
+          name: editMaterialData.name,
+          type: editMaterialData.type,
+          category: editMaterialData.category,
+          quality: editMaterialData.quality,
+          size: editMaterialData.size,
+          unit: editMaterialData.unit,
+          colorPattern: editMaterialData.colorPattern,
+          imageUrl: editMaterialData.imageUrl || null,
+          expiredAt: editMaterialData.expiredAt || null,
+        }
+      })
+      toast.success('Bahan Baku Diperbarui', {
+        description: `Bahan baku ${editMaterialData.name} berhasil disimpan.`
+      })
+      setIsEditing(false)
+      setSelectedMaterial(updated)
+      navigate({ to: '/materials', search: searchParams })
+    } catch (err: any) {
+      toast.error('Gagal Memperbarui Bahan Baku', { description: err.message })
+    }
+  }
+
+  // Default values based on dynamic options
+  const defaultType = options.types[0]?.name || 'LEATHER'
+  const defaultCategory = options.categories[0]?.name || ''
+  const defaultQuality = options.qualities[0]?.name || ''
+  const defaultUnit = options.units[0]?.name || 'feet'
+
+  const [newMaterial, setNewMaterial] = useState({
+    sku: '',
+    name: '',
+    type: defaultType,
+    category: defaultCategory,
+    quality: defaultQuality,
+    size: '',
+    stock: 0,
+    unit: defaultUnit,
+    colorPattern: '',
+    imageUrl: '',
+    expiredAt: '',
+  })
+
+  // Inline dynamic option creation states & handlers for quick UX
+  const [isAddingTypeInline, setIsAddingTypeInline] = useState(false)
+  const [inlineTypeValue, setInlineTypeValue] = useState('')
+  const [isAddingCategoryInline, setIsAddingCategoryInline] = useState(false)
+  const [inlineCategoryValue, setInlineCategoryValue] = useState('')
+  const [isAddingQualityInline, setIsAddingQualityInline] = useState(false)
+  const [inlineQualityValue, setInlineQualityValue] = useState('')
+  const [isAddingUnitInline, setIsAddingUnitInline] = useState(false)
+  const [inlineUnitValue, setInlineUnitValue] = useState('')
+
+  const handleSaveTypeInline = async () => {
+    const val = inlineTypeValue.trim()
+    if (!val) return
+    try {
+      await addDropdownOption({
+        data: { 
+          type: 'type', 
+          name: val.toUpperCase(), 
+          label: val 
+        }
+      })
+      toast.success(`Tipe "${val}" berhasil ditambahkan`)
+      setInlineTypeValue('')
+      setIsAddingTypeInline(false)
+      if (isEditing) {
+        setEditMaterialData(prev => ({ ...prev, type: val.toUpperCase() }))
+      } else {
+        setNewMaterial(prev => ({ ...prev, type: val.toUpperCase() }))
+      }
+      navigate({ to: '/materials', search: searchParams })
+    } catch (err: any) {
+      toast.error('Gagal Menambahkan Tipe', { description: err.message })
+    }
+  }
+
+  const handleSaveCategoryInline = async () => {
+    const val = inlineCategoryValue.trim()
+    if (!val) return
+    try {
+      await addDropdownOption({
+        data: { type: 'category', name: val }
+      })
+      toast.success(`Kategori "${val}" berhasil ditambahkan`)
+      setInlineCategoryValue('')
+      setIsAddingCategoryInline(false)
+      if (isEditing) {
+        setEditMaterialData(prev => ({ ...prev, category: val }))
+      } else {
+        setNewMaterial(prev => ({ ...prev, category: val }))
+      }
+      navigate({ to: '/materials', search: searchParams })
+    } catch (err: any) {
+      toast.error('Gagal Menambahkan Kategori', { description: err.message })
+    }
+  }
+
+  const handleSaveQualityInline = async () => {
+    const val = inlineQualityValue.trim()
+    if (!val) return
+    try {
+      await addDropdownOption({
+        data: { type: 'quality', name: val }
+      })
+      toast.success(`Kualitas "${val}" berhasil ditambahkan`)
+      setInlineQualityValue('')
+      setIsAddingQualityInline(false)
+      if (isEditing) {
+        setEditMaterialData(prev => ({ ...prev, quality: val }))
+      } else {
+        setNewMaterial(prev => ({ ...prev, quality: val }))
+      }
+      navigate({ to: '/materials', search: searchParams })
+    } catch (err: any) {
+      toast.error('Gagal Menambahkan Kualitas', { description: err.message })
+    }
+  }
+
+  const handleSaveUnitInline = async () => {
+    const val = inlineUnitValue.trim()
+    if (!val) return
+    try {
+      await addDropdownOption({
+        data: { type: 'unit', name: val }
+      })
+      toast.success(`Satuan "${val}" berhasil ditambahkan`)
+      setInlineUnitValue('')
+      setIsAddingUnitInline(false)
+      if (isEditing) {
+        setEditMaterialData(prev => ({ ...prev, unit: val }))
+      } else {
+        setNewMaterial(prev => ({ ...prev, unit: val }))
+      }
+      navigate({ to: '/materials', search: searchParams })
+    } catch (err: any) {
+      toast.error('Gagal Menambahkan Satuan', { description: err.message })
+    }
+  }
+
 
   // Stock update state
   const [stockDelta, setStockDelta] = useState<number>(0)
@@ -276,12 +462,12 @@ function MaterialsPage() {
       setNewMaterial({
         sku: '',
         name: '',
-        type: 'LEATHER',
-        category: '',
-        quality: 'Grade A',
+        type: defaultType,
+        category: defaultCategory,
+        quality: defaultQuality,
         size: '',
         stock: 0,
-        unit: 'feet',
+        unit: defaultUnit,
         colorPattern: '',
         imageUrl: '',
         expiredAt: '',
@@ -346,14 +532,15 @@ function MaterialsPage() {
   }
 
   // Handle Delete Material
-  const handleDelete = async (id: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus bahan baku ini secara permanen? Semua riwayat catatan stok juga akan ikut dihapus.')) return
+  const handleDelete = async () => {
+    if (!selectedMaterial) return
     try {
-      await deleteMaterial({ data: { id } })
+      await deleteMaterial({ data: { id: selectedMaterial.id } })
       toast.success('Bahan Baku Dihapus', {
         description: 'Bahan baku telah berhasil dihapus secara permanen dari sistem.'
       })
       setSelectedMaterial(null)
+      setIsDeleteDialogOpen(false)
       navigate({ to: '/materials', search: searchParams })
     } catch (err: any) {
       toast.error('Gagal Menghapus Bahan Baku', {
@@ -449,13 +636,15 @@ function MaterialsPage() {
                 PEMANTAUAN STOK & DAFTAR BAHAN BAKU
               </p>
             </div>
-            <button 
-              onClick={() => setIsAdding(true)}
-              className="flex items-center gap-2 bg-gallery-dark text-gallery-base px-4 py-2 text-xs font-semibold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-200 cursor-pointer"
-            >
-              <Plus size={14} />
-              Tambah Bahan Baku
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setIsAdding(true)}
+                className="flex items-center gap-2 bg-gallery-dark text-gallery-base px-4 py-2 text-xs font-semibold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-200 cursor-pointer font-sans"
+              >
+                <Plus size={14} />
+                <span>Tambah Bahan Baku</span>
+              </button>
+            </div>
           </div>
 
           {/* Filters and Search Bar */}
@@ -760,15 +949,22 @@ function MaterialsPage() {
               </div>
               <div className="flex gap-2">
                 <button 
-                  onClick={() => handleDelete(selectedMaterial.id)}
-                  className="p-2 border-[0.5px] border-gallery-line hover:border-red-600 hover:text-red-600 transition-colors bg-gallery-base"
-                  title="Delete Material"
+                  onClick={() => startEdit(selectedMaterial)}
+                  className="p-2 border-[0.5px] border-gallery-line hover:border-gallery-dark hover:text-gallery-dark transition-colors bg-gallery-base cursor-pointer"
+                  title="Edit Informasi Bahan Baku"
+                >
+                  <Pencil size={14} />
+                </button>
+                <button 
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  className="p-2 border-[0.5px] border-gallery-line hover:border-red-600 hover:text-red-600 transition-colors bg-gallery-base cursor-pointer"
+                  title="Hapus Bahan Baku"
                 >
                   <Trash2 size={14} />
                 </button>
                 <button 
                   onClick={() => setSelectedMaterial(null)}
-                  className="p-2 border-[0.5px] border-gallery-line hover:border-gallery-dark transition-colors bg-gallery-base"
+                  className="p-2 border-[0.5px] border-gallery-line hover:border-gallery-dark transition-colors bg-gallery-base cursor-pointer"
                 >
                   <X size={14} />
                 </button>
@@ -1017,28 +1213,62 @@ function MaterialsPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Jenis Bahan*
-              </label>
-              <select 
-                value={newMaterial.type}
-                onChange={(e) => {
-                  const t = e.target.value
-                  let u = 'feet'
-                  if (t === 'FABRIC') u = 'meter'
-                  if (t === 'GLUE') u = 'ml'
-                  if (t === 'ZIPPER') u = 'pcs'
-                  if (t === 'ACCESSORY') u = 'pcs'
-                  setNewMaterial({...newMaterial, type: t, unit: u})
-                }}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide uppercase"
-              >
-                <option value="LEATHER">Kulit (Leather)</option>
-                <option value="FABRIC">Kain (Fabric)</option>
-                <option value="GLUE">Lem (Glue)</option>
-                <option value="ZIPPER">Resleting (Zipper)</option>
-                <option value="ACCESSORY">Aksesori</option>
-              </select>
+              <div className="flex justify-between items-center">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                  Jenis Bahan*
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingTypeInline(!isAddingTypeInline)
+                    setInlineTypeValue('')
+                  }}
+                  className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
+                >
+                  {isAddingTypeInline ? 'Batal' : '+ Tambah Baru'}
+                </button>
+              </div>
+              {isAddingTypeInline ? (
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama Tipe Baru"
+                    value={inlineTypeValue}
+                    onChange={(e) => setInlineTypeValue(e.target.value)}
+                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveTypeInline}
+                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              ) : (
+                <select 
+                  value={newMaterial.type}
+                  onChange={(e) => {
+                    const t = e.target.value
+                    let u = 'feet'
+                    if (t === 'FABRIC') u = 'meter'
+                    if (t === 'GLUE') u = 'ml'
+                    if (t === 'ZIPPER') u = 'pcs'
+                    if (t === 'ACCESSORY') u = 'pcs'
+                    
+                    const matchUnit = options.units.find(un => un.name === u)
+                    const unitVal = matchUnit ? matchUnit.name : (options.units[0]?.name || u)
+
+                    setNewMaterial({...newMaterial, type: t, unit: unitVal})
+                  }}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide uppercase"
+                >
+                  {options.types.map(t => (
+                    <option key={t.id} value={t.name}>{t.label || t.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -1058,30 +1288,99 @@ function MaterialsPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Kategori / Kelompok*
-              </label>
-              <input 
-                type="text" 
-                required 
-                placeholder="e.g. Synthetic, Grade A, Brass"
-                value={newMaterial.category}
-                onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-              />
+              <div className="flex justify-between items-center">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                  Kategori / Kelompok*
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingCategoryInline(!isAddingCategoryInline)
+                    setInlineCategoryValue('')
+                  }}
+                  className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
+                >
+                  {isAddingCategoryInline ? 'Batal' : '+ Tambah Baru'}
+                </button>
+              </div>
+              {isAddingCategoryInline ? (
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama Kategori Baru"
+                    value={inlineCategoryValue}
+                    onChange={(e) => setInlineCategoryValue(e.target.value)}
+                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveCategoryInline}
+                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              ) : (
+                <select 
+                  required 
+                  value={newMaterial.category}
+                  onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide"
+                >
+                  {options.categories.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
+            
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Kualitas Bahan*
-              </label>
-              <input 
-                type="text" 
-                required 
-                placeholder="e.g. Premium, Grade A, Standard"
-                value={newMaterial.quality}
-                onChange={(e) => setNewMaterial({...newMaterial, quality: e.target.value})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-              />
+              <div className="flex justify-between items-center">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                  Kualitas Bahan*
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingQualityInline(!isAddingQualityInline)
+                    setInlineQualityValue('')
+                  }}
+                  className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
+                >
+                  {isAddingQualityInline ? 'Batal' : '+ Tambah Baru'}
+                </button>
+              </div>
+              {isAddingQualityInline ? (
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama Kualitas Baru"
+                    value={inlineQualityValue}
+                    onChange={(e) => setInlineQualityValue(e.target.value)}
+                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveQualityInline}
+                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              ) : (
+                <select 
+                  required 
+                  value={newMaterial.quality}
+                  onChange={(e) => setNewMaterial({...newMaterial, quality: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide"
+                >
+                  {options.qualities.map(q => (
+                    <option key={q.id} value={q.name}>{q.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -1113,17 +1412,51 @@ function MaterialsPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Satuan (cth: meter, pcs)*
-              </label>
-              <input 
-                type="text" 
-                required 
-                placeholder="e.g. feet, meter, ml, pcs"
-                value={newMaterial.unit}
-                onChange={(e) => setNewMaterial({...newMaterial, unit: e.target.value.toLowerCase()})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-              />
+              <div className="flex justify-between items-center">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                  Satuan*
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingUnitInline(!isAddingUnitInline)
+                    setInlineUnitValue('')
+                  }}
+                  className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
+                >
+                  {isAddingUnitInline ? 'Batal' : '+ Tambah'}
+                </button>
+              </div>
+              {isAddingUnitInline ? (
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Pcs"
+                    value={inlineUnitValue}
+                    onChange={(e) => setInlineUnitValue(e.target.value)}
+                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveUnitInline}
+                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              ) : (
+                <select 
+                  required 
+                  value={newMaterial.unit}
+                  onChange={(e) => setNewMaterial({...newMaterial, unit: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide"
+                >
+                  {options.units.map(u => (
+                    <option key={u.id} value={u.name}>{u.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -1177,6 +1510,341 @@ function MaterialsPage() {
         </form>
       </DialogContent>
     </Dialog>
+
+    {/* EDIT BAHAN BAKU DIALOG */}
+    <Dialog open={isEditing} onOpenChange={setIsEditing}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>EDIT INFORMASI BAHAN BAKU</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleEditSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Kode SKU / Nomor Unik*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. LTH-SYN-BK01"
+                value={editMaterialData.sku}
+                onChange={(e) => setEditMaterialData({...editMaterialData, sku: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                  Jenis Bahan*
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingTypeInline(!isAddingTypeInline)
+                    setInlineTypeValue('')
+                  }}
+                  className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
+                >
+                  {isAddingTypeInline ? 'Batal' : '+ Tambah Baru'}
+                </button>
+              </div>
+              {isAddingTypeInline ? (
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama Tipe Baru"
+                    value={inlineTypeValue}
+                    onChange={(e) => setInlineTypeValue(e.target.value)}
+                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveTypeInline}
+                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              ) : (
+                <select 
+                  value={editMaterialData.type}
+                  onChange={(e) => {
+                    const t = e.target.value
+                    let u = 'feet'
+                    if (t === 'FABRIC') u = 'meter'
+                    if (t === 'GLUE') u = 'ml'
+                    if (t === 'ZIPPER') u = 'pcs'
+                    if (t === 'ACCESSORY') u = 'pcs'
+                    
+                    const matchUnit = options.units.find(un => un.name === u)
+                    const unitVal = matchUnit ? matchUnit.name : (options.units[0]?.name || u)
+
+                    setEditMaterialData({...editMaterialData, type: t, unit: unitVal})
+                  }}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide uppercase"
+                >
+                  {options.types.map(t => (
+                    <option key={t.id} value={t.name}>{t.label || t.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+              Nama Bahan Baku*
+            </label>
+            <input 
+              type="text" 
+              required 
+              placeholder="e.g. Synthetic Nappa Suede"
+              value={editMaterialData.name}
+              onChange={(e) => setEditMaterialData({...editMaterialData, name: e.target.value})}
+              className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                  Kategori / Kelompok*
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingCategoryInline(!isAddingCategoryInline)
+                    setInlineCategoryValue('')
+                  }}
+                  className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
+                >
+                  {isAddingCategoryInline ? 'Batal' : '+ Tambah Baru'}
+                </button>
+              </div>
+              {isAddingCategoryInline ? (
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama Kategori Baru"
+                    value={inlineCategoryValue}
+                    onChange={(e) => setInlineCategoryValue(e.target.value)}
+                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveCategoryInline}
+                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              ) : (
+                <select 
+                  required 
+                  value={editMaterialData.category}
+                  onChange={(e) => setEditMaterialData({...editMaterialData, category: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide"
+                >
+                  {options.categories.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                  Kualitas Bahan*
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingQualityInline(!isAddingQualityInline)
+                    setInlineQualityValue('')
+                  }}
+                  className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
+                >
+                  {isAddingQualityInline ? 'Batal' : '+ Tambah Baru'}
+                </button>
+              </div>
+              {isAddingQualityInline ? (
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama Kualitas Baru"
+                    value={inlineQualityValue}
+                    onChange={(e) => setInlineQualityValue(e.target.value)}
+                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveQualityInline}
+                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              ) : (
+                <select 
+                  required 
+                  value={editMaterialData.quality}
+                  onChange={(e) => setEditMaterialData({...editMaterialData, quality: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide"
+                >
+                  {options.qualities.map(q => (
+                    <option key={q.id} value={q.name}>{q.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Ukuran / Detail Fisik*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. 5x5 ft, 1m, 120ml"
+                value={editMaterialData.size}
+                onChange={(e) => setEditMaterialData({...editMaterialData, size: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                  Satuan*
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingUnitInline(!isAddingUnitInline)
+                    setInlineUnitValue('')
+                  }}
+                  className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
+                >
+                  {isAddingUnitInline ? 'Batal' : '+ Tambah'}
+                </button>
+              </div>
+              {isAddingUnitInline ? (
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Pcs"
+                    value={inlineUnitValue}
+                    onChange={(e) => setInlineUnitValue(e.target.value)}
+                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveUnitInline}
+                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                  >
+                    Simpan
+                  </button>
+                </div>
+              ) : (
+                <select 
+                  required 
+                  value={editMaterialData.unit}
+                  onChange={(e) => setEditMaterialData({...editMaterialData, unit: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-semibold tracking-wide"
+                >
+                  {options.units.map(u => (
+                    <option key={u.id} value={u.name}>{u.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+              Pilihan Warna / Motif*
+            </label>
+            <input 
+              type="text" 
+              required 
+              placeholder="e.g. Python Gold, Matte Slate Black"
+              value={editMaterialData.colorPattern}
+              onChange={(e) => setEditMaterialData({...editMaterialData, colorPattern: e.target.value})}
+              className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                URL Foto
+              </label>
+              <input 
+                type="text" 
+                placeholder="e.g. https://... (Optional)"
+                value={editMaterialData.imageUrl}
+                onChange={(e) => setEditMaterialData({...editMaterialData, imageUrl: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Tanggal Kedaluwarsa (Jika Ada)
+              </label>
+              <input 
+                type="date" 
+                placeholder="Optional"
+                value={editMaterialData.expiredAt}
+                onChange={(e) => setEditMaterialData({...editMaterialData, expiredAt: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            className="w-full bg-gallery-dark text-gallery-base py-2.5 text-xs font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity active:scale-95 duration-200 mt-2 cursor-pointer font-sans"
+          >
+            Simpan Perubahan Bahan Baku
+          </button>
+        </form>
+      </DialogContent>
+    </Dialog>
+
+    {/* DESTRUCTIVE DELETE CONFIRMATION DIALOG */}
+    <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <DialogContent className="max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Hapus Bahan Baku</DialogTitle>
+          <DialogDescription>
+            Apakah Anda yakin ingin menghapus bahan baku <span className="font-bold text-gallery-dark">{selectedMaterial?.sku} - {selectedMaterial?.name}</span> secara permanen? Semua riwayat catatan stok juga akan ikut dihapus. Tindakan ini tidak dapat dibatalkan.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex sm:justify-end gap-2">
+          <button
+            onClick={() => setIsDeleteDialogOpen(false)}
+            className="px-4 py-2 text-xs font-semibold uppercase tracking-wider border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base text-gallery-muted hover:text-gallery-dark transition-all cursor-pointer font-sans"
+          >
+            Batal
+          </button>
+          <button
+            onClick={handleDelete}
+            className="px-4 py-2 text-xs font-semibold uppercase tracking-wider bg-destructive text-destructive-foreground hover:opacity-90 transition-all cursor-pointer font-sans"
+          >
+            Ya, Hapus
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
   </div>
   )
 }

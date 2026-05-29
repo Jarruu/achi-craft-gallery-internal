@@ -69,3 +69,74 @@ export const createProduct = createServerFn({ method: 'POST' })
       })
     })
   })
+
+const updateProductSchema = z.object({
+  id: z.string(),
+  name: z.string().min(2),
+  description: z.string().optional().nullable(),
+  imageUrl: z.string().optional().nullable(),
+  materials: z.array(
+    z.object({
+      materialId: z.string(),
+      quantityRequired: z.number().positive(),
+      notes: z.string().optional().nullable(),
+    })
+  ).min(1, "Product innovation must include at least one raw material."),
+})
+
+export const updateProduct = createServerFn({ method: 'POST' })
+  .inputValidator(updateProductSchema)
+  .handler(async ({ data }) => {
+    const { prisma } = await import('#/db.server')
+    const { id, name, description, imageUrl, materials } = data
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Update the product innovation metadata
+      const product = await tx.product.update({
+        where: { id },
+        data: {
+          name,
+          description,
+          imageUrl,
+        },
+      })
+
+      // 2. Delete all existing BOM references
+      await tx.productMaterial.deleteMany({
+        where: { productId: id },
+      })
+
+      // 3. Create the new BOM links
+      const bomData = materials.map((item) => ({
+        productId: id,
+        materialId: item.materialId,
+        quantityRequired: item.quantityRequired,
+        notes: item.notes || null,
+      }))
+
+      await tx.productMaterial.createMany({
+        data: bomData,
+      })
+
+      return await tx.product.findUnique({
+        where: { id },
+        include: {
+          materials: {
+            include: {
+              material: true,
+            },
+          },
+        },
+      })
+    })
+  })
+
+export const deleteProduct = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ id: z.string() }))
+  .handler(async ({ data }) => {
+    const { prisma } = await import('#/db.server')
+    const { id } = data
+    return await prisma.product.delete({
+      where: { id },
+    })
+  })

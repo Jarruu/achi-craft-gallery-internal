@@ -70,3 +70,28 @@ model User {
   password  String
   createdAt DateTime @default(now())
 }
+
+model TypeOption {
+  id        String   @id @default(uuid())
+  name      String   @unique // e.g. "LEATHER", "FABRIC", "GLUE", "ZIPPER", "ACCESSORY"
+  label     String   // e.g. "Kulit (Leather)"
+  createdAt DateTime @default(now())
+}
+
+model CategoryOption {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model QualityOption {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model UnitOption {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}

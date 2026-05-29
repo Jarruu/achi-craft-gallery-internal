@@ -17,6 +17,63 @@ async function main() {
   await prisma.stockLog.deleteMany()
   await prisma.product.deleteMany()
   await prisma.material.deleteMany()
+  
+  await prisma.typeOption.deleteMany()
+  await prisma.categoryOption.deleteMany()
+  await prisma.qualityOption.deleteMany()
+  await prisma.unitOption.deleteMany()
+
+  // Seed default TypeOptions
+  console.log('  Seeding TypeOptions...')
+  await prisma.typeOption.createMany({
+    data: [
+      { name: 'LEATHER', label: 'Kulit (Leather)' },
+      { name: 'FABRIC', label: 'Kain (Fabric)' },
+      { name: 'GLUE', label: 'Lem (Glue)' },
+      { name: 'ZIPPER', label: 'Resleting (Zipper)' },
+      { name: 'ACCESSORY', label: 'Aksesori' }
+    ]
+  })
+
+  // Seed default CategoryOptions
+  console.log('  Seeding CategoryOptions...')
+  await prisma.categoryOption.createMany({
+    data: [
+      { name: 'Kulit Sintetis' },
+      { name: 'Suede Non-Sintetis' },
+      { name: 'Kain Kualitas A' },
+      { name: 'Lem Solvent (Bahan Pelarut)' },
+      { name: 'Resin Epoxy' },
+      { name: 'Ritsleting Logam' },
+      { name: 'Gesper Logam' }
+    ]
+  })
+
+  // Seed default QualityOptions
+  console.log('  Seeding QualityOptions...')
+  await prisma.qualityOption.createMany({
+    data: [
+      { name: 'Kualitas Premium' },
+      { name: 'Kualitas Ultra-Premium' },
+      { name: 'Tenunan Kualitas Tinggi' },
+      { name: 'Standar Industri' },
+      { name: 'Bening Kristal' },
+      { name: 'Kuningan Kelas A' },
+      { name: 'Polesan Premium' },
+      { name: 'Grade A' }
+    ]
+  })
+
+  // Seed default UnitOptions
+  console.log('  Seeding UnitOptions...')
+  await prisma.unitOption.createMany({
+    data: [
+      { name: 'feet' },
+      { name: 'meter' },
+      { name: 'ml' },
+      { name: 'pcs' }
+    ]
+  })
 
   // 1. Create Raw Materials (Bahan Baku)
   const materials = [
