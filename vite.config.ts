@@ -5,7 +5,7 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 
-export default defineConfig({
+const config = defineConfig({
   resolve: { tsconfigPaths: true },
 
   ssr: {
@@ -20,12 +20,6 @@ export default defineConfig({
   plugins: [
     devtools(),
     nitro({
-      preset: 'vercel',
-      vercel: {
-        functions: {
-          runtime: 'nodejs24.x'
-        }
-      },
       rollupConfig: {
         external: [/^@sentry\//]
       }
@@ -35,3 +29,5 @@ export default defineConfig({
     viteReact(),
   ],
 })
+
+export default config
