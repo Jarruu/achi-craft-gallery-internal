@@ -1,6 +1,6 @@
 # Agent Configurations & System Instructions
 
-Welcome to the **Achi Craft Gallery** project codebase. This configuration file acts as the primary instruction source for all AI agents (Cursor, Claude, Antigravity, etc.) interacting with this repository.
+Welcome to the **Achi Craft Galery** project codebase. This configuration file acts as the primary instruction source for all AI agents (Cursor, Claude, Antigravity, etc.) interacting with this repository.
 
 ---
 

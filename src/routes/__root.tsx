@@ -69,7 +69,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'ACHI CRAFT GALLERY — ADMIN INTERNAL',
+        title: 'ACHI CRAFT GALERY — ADMIN INTERNAL',
       },
     ],
     links: [
@@ -111,15 +111,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <div className="p-8 pb-6 flex items-center gap-3.5">
                 <img 
                   src={achiLogo} 
-                  alt="Achi Craft Gallery Logo" 
-                  className="w-12 h-12 object-cover border-[0.5px] border-gallery-line shrink-0" 
+                  alt="Achi Craft Galery Logo" 
+                  className="w-12 h-12 object-contain shrink-0" 
                 />
                 <div>
                   <div className="text-[9px] uppercase tracking-[0.2em] text-gallery-muted font-bold leading-tight">
                     INVENTARIS INTERNAL
                   </div>
                   <h1 className="text-sm font-serif tracking-tight text-gallery-dark mt-0.5 uppercase leading-tight">
-                    ACHI CRAFT GALLERY
+                    ACHI CRAFT GALERY
                   </h1>
                 </div>
               </div>
@@ -203,14 +203,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 <img 
                   src={achiLogo} 
                   alt="Achi Logo" 
-                  className="w-8 h-8 object-cover border-[0.5px] border-gallery-line shrink-0" 
+                  className="w-8 h-8 object-contain shrink-0" 
                 />
                 <div>
                   <div className="text-[7.5px] uppercase tracking-[0.15em] text-gallery-muted font-bold leading-tight">
                     INVENTARIS INTERNAL
                   </div>
                   <h1 className="text-xs font-serif tracking-tight text-gallery-dark uppercase mt-0.5 leading-tight">
-                    ACHI CRAFT GALLERY
+                    ACHI CRAFT GALERY
                   </h1>
                 </div>
               </div>
@@ -238,14 +238,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                       <img 
                         src={achiLogo} 
                         alt="Achi Logo" 
-                        className="w-10 h-10 object-cover border-[0.5px] border-gallery-line shrink-0" 
+                        className="w-10 h-10 object-contain shrink-0" 
                       />
                       <div>
                         <div className="text-[8px] uppercase tracking-[0.18em] text-gallery-muted font-bold leading-tight">
                           SISTEM INVENTARIS
                         </div>
                         <h1 className="text-sm font-serif tracking-tight text-gallery-dark uppercase mt-0.5 leading-tight">
-                          ACHI CRAFT GALLERY
+                          ACHI CRAFT GALERY
                         </h1>
                       </div>
                     </div>
@@ -358,7 +358,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             <DialogHeader>
               <DialogTitle>Konfirmasi Keluar</DialogTitle>
               <DialogDescription>
-                Apakah Anda yakin ingin keluar dari sistem inventaris Achi Craft Gallery? Kredensial masuk Anda akan dihapus dari peramban ini.
+                Apakah Anda yakin ingin keluar dari sistem inventaris Achi Craft Galery? Kredensial masuk Anda akan dihapus dari peramban ini.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex sm:justify-end gap-2">

@@ -1,6 +1,6 @@
 # Gemini Configuration & Design System Guidelines
 
-This document outlines the technical stack, styling tokens, and design philosophy for the **Achi Craft Gallery** project, tailored for the Gemini AI Coding Assistant.
+This document outlines the technical stack, styling tokens, and design philosophy for the **Achi Craft Galery** project, tailored for the Gemini AI Coding Assistant.
 
 ---
 

@@ -57,7 +57,7 @@ function LoginPage() {
         <img 
           src={artGallery60} 
           alt="" 
-          className="absolute inset-0 w-full h-full object-cover opacity-100 pointer-events-none select-none z-0 mix-blend-multiply"
+          className="absolute inset-0 w-full h-full object-cover opacity-100 pointer-events-none select-none z-0"
         />
 
         {/* Subtle geometric grid background overlay */}
@@ -70,34 +70,20 @@ function LoginPage() {
           <img 
             src={achiLogo} 
             alt="Achi Logo" 
-            className="w-10 h-10 object-cover border-[0.5px] border-[#F3F1F1]/30" 
+            className="w-10 h-10 object-contain" 
           />
           <div>
-            <div className="text-[8px] uppercase tracking-[0.25em] text-[#8E8E93] font-bold">
-              INVENTARIS INTERNAL
-            </div>
             <div className="text-xs font-serif tracking-widest text-[#F3F1F1] mt-0.5 uppercase">
-              ACHI CRAFT GALLERY
+              ACHI CRAFT GALERY
             </div>
           </div>
         </div>
 
         {/* Large Display Typography */}
         <div className="z-10 space-y-6 max-w-xl my-auto">
-          <div className="text-[9px] uppercase tracking-[0.3em] text-[#8E8E93] font-bold border-b-[0.5px] border-[#F3F1F1]/10 pb-2 inline-block">
-            AUTHENTICATION SYSTEM
-          </div>
           <h2 className="text-5xl font-serif leading-tight tracking-tight text-white">
-            Kemewahan yang Presisi Dimulai dari <span className="italic text-[#8E8E93] font-normal">Detail Terkecil</span>.
+            Kemewahan dan Estetika Dimulai dari <span className="italic text-[#8E8E93] font-normal">Detail Terkecil</span>.
           </h2>
-          <p className="font-sans text-xs tracking-wider text-[#8E8E93] leading-relaxed uppercase">
-            Tokyo & Bandung — Est. 2024
-          </p>
-        </div>
-
-        {/* Footer label */}
-        <div className="z-10 text-[8px] tracking-[0.2em] text-[#8E8E93] uppercase font-bold">
-          © {new Date().getFullYear()} ACHI CRAFT GALLERY. ALL RIGHTS RESERVED.
         </div>
       </div>
 
@@ -111,14 +97,11 @@ function LoginPage() {
               <img 
                 src={achiLogo} 
                 alt="Achi Logo" 
-                className="w-10 h-10 object-cover border-[0.5px] border-gallery-line" 
+                className="w-10 h-10 object-contain" 
               />
               <div>
-                <div className="text-[8px] uppercase tracking-[0.18em] text-gallery-muted font-bold">
-                  INVENTARIS INTERNAL
-                </div>
                 <div className="text-xs font-serif tracking-widest text-gallery-dark uppercase mt-0.5">
-                  ACHI CRAFT GALLERY
+                  ACHI CRAFT GALERY
                 </div>
               </div>
             </div>
@@ -126,9 +109,6 @@ function LoginPage() {
             <h1 className="text-3xl font-serif tracking-tight text-gallery-dark">
               MASUK AKUN
             </h1>
-            <p className="text-xs text-gallery-muted font-sans uppercase tracking-wider">
-              Masukkan kredensial Anda untuk mengelola inventaris
-            </p>
           </div>
 
           {/* Form */}
@@ -201,7 +181,7 @@ function LoginPage() {
           {/* Helper details */}
           <div className="border-t-[0.5px] border-gallery-line pt-6 text-[9px] text-gallery-muted uppercase font-semibold text-center leading-relaxed">
             Hanya administrator terdaftar yang memiliki akses sistem ini.<br />
-            Silakan hubungi tim IT Achi Craft Gallery untuk pendaftaran.
+            Silakan hubungi tim IT Achi Craft Galery untuk pendaftaran.
           </div>
         </div>
       </div>
