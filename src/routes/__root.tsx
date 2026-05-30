@@ -84,8 +84,8 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const { location } = useRouterState()
-  const isLoginPage = location.pathname === '/login'
+  const { location, resolvedLocation } = useRouterState()
+  const isLoginPage = (resolvedLocation?.pathname || location?.pathname || '') === '/login'
   const loaderData = Route.useLoaderData()
   const user = loaderData?.user
 
@@ -115,9 +115,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   className="w-12 h-12 object-contain shrink-0" 
                 />
                 <div>
-                  <div className="text-[9px] uppercase tracking-[0.2em] text-gallery-muted font-bold leading-tight">
-                    INVENTARIS INTERNAL
-                  </div>
                   <h1 className="text-sm font-serif tracking-tight text-gallery-dark mt-0.5 uppercase leading-tight">
                     ACHI CRAFT GALERY
                   </h1>
@@ -192,7 +189,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 
                 {/* Copyright info */}
                 <div className="text-[8px] tracking-[0.2em] text-gallery-muted uppercase font-bold opacity-60">
-                  © {new Date().getFullYear()} ACG • TOKYO & BANDUNG
+                  © {new Date().getFullYear()} ACG • PADANG
                 </div>
               </div>
             </aside>
@@ -206,9 +203,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   className="w-8 h-8 object-contain shrink-0" 
                 />
                 <div>
-                  <div className="text-[7.5px] uppercase tracking-[0.15em] text-gallery-muted font-bold leading-tight">
-                    INVENTARIS INTERNAL
-                  </div>
                   <h1 className="text-xs font-serif tracking-tight text-gallery-dark uppercase mt-0.5 leading-tight">
                     ACHI CRAFT GALERY
                   </h1>
@@ -330,7 +324,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                     
                     {/* Copyright info */}
                     <div className="text-[8px] tracking-[0.2em] text-gallery-muted uppercase font-bold opacity-60">
-                      © {new Date().getFullYear()} ACG • TOKYO & BANDUNG
+                      © {new Date().getFullYear()} ACG • PADANG
                     </div>
                   </div>
                 </aside>

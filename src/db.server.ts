@@ -12,7 +12,7 @@ declare global {
 
 export const prisma = (() => {
   const existing = globalThis.__prisma as any
-  if (existing && 'typeOption' in existing) {
+  if (existing && 'typeOption' in existing && 'production' in existing) {
     return existing as PrismaClient
   }
   return new PrismaClient({ adapter })

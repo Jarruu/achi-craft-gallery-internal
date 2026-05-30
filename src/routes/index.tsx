@@ -19,7 +19,7 @@ function DashboardPage() {
       <div className="border-b-[0.5px] border-gallery-line pb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
           <div className="text-[10px] uppercase tracking-[0.25em] text-gallery-muted font-bold">
-            PAPAN KENDALI UTAMA
+            DASHBOARD
           </div>
           <h2 className="text-4xl font-serif tracking-tight text-gallery-dark uppercase mt-1">
             RINGKASAN AKTIVITAS & INVENTARIS
@@ -70,19 +70,35 @@ function DashboardPage() {
         </div>
 
         {/* Metric 3 */}
-        <div className="p-8 flex flex-col justify-between min-h-[160px]">
+        <div className="p-8 flex flex-col justify-between min-h-[160px] relative">
           <div>
-            <div className="flex items-center justify-between text-gallery-muted mb-4">
-              <span className="text-[9px] font-bold uppercase tracking-wider">PERINGATAN STOK</span>
-              <AlertTriangle className={stats.lowStockMaterials.length > 0 ? "text-amber-600 animate-pulse" : "text-gallery-muted"} size={16} />
+            <div className="flex items-center justify-between text-gallery-muted mb-3">
+              <span className="text-[9px] font-bold uppercase tracking-wider">PERINGATAN INVENTARIS</span>
+              <AlertTriangle className={(stats.outOfStockCount + stats.expiredCount) > 0 ? "text-red-750 animate-pulse" : (stats.lowStockCount + stats.almostExpiredCount) > 0 ? "text-amber-600" : "text-gallery-muted"} size={16} />
             </div>
             <div className="text-4xl font-serif text-gallery-dark">
-              {stats.lowStockMaterials.length} <span className="text-xs font-sans font-semibold text-gallery-muted uppercase">Kritis</span>
+              {stats.outOfStockCount + stats.lowStockCount + stats.expiredCount + stats.almostExpiredCount}{" "}
+              <span className="text-xs font-sans font-semibold text-gallery-muted uppercase">Bahan</span>
             </div>
           </div>
-          <p className="text-[9px] text-gallery-muted tracking-wide mt-6 font-medium uppercase">
-            Item dengan stok kurang dari 5 unit
-          </p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[9px] text-gallery-muted font-bold tracking-wide mt-4 uppercase">
+            <div className="flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${stats.outOfStockCount > 0 ? 'bg-red-600' : 'bg-gallery-muted/30'}`} />
+              <span>Stok Habis: <span className={stats.outOfStockCount > 0 ? "text-red-700" : ""}>{stats.outOfStockCount}</span></span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${stats.lowStockCount > 0 ? 'bg-amber-500' : 'bg-gallery-muted/30'}`} />
+              <span>Stok Menipis: <span className={stats.lowStockCount > 0 ? "text-amber-650" : ""}>{stats.lowStockCount}</span></span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${stats.expiredCount > 0 ? 'bg-red-600' : 'bg-gallery-muted/30'}`} />
+              <span>Expired: <span className={stats.expiredCount > 0 ? "text-red-700" : ""}>{stats.expiredCount}</span></span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${stats.almostExpiredCount > 0 ? 'bg-amber-500' : 'bg-gallery-muted/30'}`} />
+              <span>Hampir Expired: <span className={stats.almostExpiredCount > 0 ? "text-amber-650" : ""}>{stats.almostExpiredCount}</span></span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -199,61 +215,67 @@ function DashboardPage() {
         {/* RIGHT COLUMN: Low Stock Alerts, Quick Actions & Recent Activity (5/12) */}
         <div className="lg:col-span-5 space-y-8">
           
-          {/* Section: Critical Materials (Restock Needed) */}
-          <div className="border-[0.5px] border-gallery-line bg-gallery-split p-6">
-            <div className="border-b-[0.5px] border-gallery-line pb-3 mb-4 flex justify-between items-center">
-              <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
-                BAHAN KRITIS (RESTOCK SEGERA)
-              </h3>
-              <Link to="/materials" className="text-[9px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors">
-                LIHAT <ArrowRight size={10} />
-              </Link>
+            {/* Section: Critical Materials (Restock/Expired Warnings) */}
+            <div className="border-[0.5px] border-gallery-line bg-gallery-split p-6">
+              <div className="border-b-[0.5px] border-gallery-line pb-3 mb-4 flex justify-between items-center">
+                <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
+                  PERINGATAN BAHAN (PERLU PERHATIAN)
+                </h3>
+                <Link to="/materials" className="text-[9px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors">
+                  LIHAT <ArrowRight size={10} />
+                </Link>
+              </div>
+  
+              {stats.warningMaterials.length === 0 ? (
+                <div className="p-4 text-center text-xs tracking-wider text-green-800 uppercase bg-green-100/50 border-[0.5px] border-green-200 font-semibold font-sans">
+                  ✓ Seluruh bahan baku berada dalam kondisi aman.
+                </div>
+              ) : (
+                <div className="space-y-3 font-sans">
+                  {stats.warningMaterials.map((material: any) => {
+                    const isRed = material.warningType === 'EXPIRED' || material.warningType === 'OUT_OF_STOCK'
+                    return (
+                      <Link
+                        key={material.id}
+                        to="/materials"
+                        search={{ search: material.sku }}
+                        className="block bg-gallery-base hover:bg-gallery-base/80 border-[0.5px] border-gallery-line p-3 transition-all no-underline group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[8px] font-bold tracking-wider uppercase bg-gallery-dark text-gallery-base px-1.5 py-0.5">
+                                {material.sku}
+                              </span>
+                              <span className="text-[8px] font-bold tracking-wider uppercase text-gallery-muted bg-gallery-split border-[0.5px] border-gallery-line px-1 py-0.25">
+                                {material.type}
+                              </span>
+                            </div>
+                            <div className="text-xs font-serif font-bold uppercase mt-1.5 text-gallery-dark group-hover:text-gallery-dark/70">
+                              {material.name}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className={`text-xs font-bold ${isRed ? 'text-red-700' : 'text-amber-700'}`}>
+                              {material.warningType === 'LOW_STOCK' ? `${material.stock} ${material.unit}` : material.message}
+                            </div>
+                            <span className={`text-[7px] font-bold px-1.5 py-0.25 tracking-widest uppercase mt-1 inline-block border ${
+                              isRed 
+                                ? 'bg-red-100 text-red-800 border-red-200/50' 
+                                : 'bg-amber-100 text-amber-800 border-amber-200/50'
+                            }`}>
+                              {material.warningType === 'EXPIRED' ? 'Expired' :
+                               material.warningType === 'OUT_OF_STOCK' ? 'Habis' :
+                               material.warningType === 'ALMOST_EXPIRED' ? 'Hampir Exp' : 'Menipis'}
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
             </div>
-
-            {stats.lowStockMaterials.length === 0 ? (
-              <div className="p-4 text-center text-xs tracking-wider text-green-800 uppercase bg-green-100/50 border-[0.5px] border-green-200 font-semibold font-sans">
-                ✓ Seluruh bahan baku berada di atas batas kritis.
-              </div>
-            ) : (
-              <div className="space-y-3 font-sans">
-                {stats.lowStockMaterials.map((material) => (
-                  <Link
-                    key={material.id}
-                    to="/materials"
-                    search={{ search: material.sku }}
-                    className="block bg-gallery-base hover:bg-gallery-base/80 border-[0.5px] border-gallery-line p-3 transition-all no-underline group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[8px] font-bold tracking-wider uppercase bg-gallery-dark text-gallery-base px-1.5 py-0.5">
-                            {material.sku}
-                          </span>
-                          <span className="text-[8px] font-bold tracking-wider uppercase text-gallery-muted bg-gallery-split border-[0.5px] border-gallery-line px-1 py-0.25">
-                            {material.type}
-                          </span>
-                        </div>
-                        <div className="text-xs font-serif font-bold uppercase mt-1.5 text-gallery-dark group-hover:text-gallery-dark/70">
-                          {material.name}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-xs font-bold text-red-700">
-                          {material.stock}
-                          <span className="text-[8px] text-gallery-muted font-bold uppercase ml-0.5">
-                            {material.unit}
-                          </span>
-                        </div>
-                        <span className="text-[7px] bg-red-100 text-red-800 font-bold px-1.5 py-0.25 tracking-widest uppercase mt-1 inline-block">
-                          LIMIT
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Section: Recent Stock History */}
           <div className="border-[0.5px] border-gallery-line bg-gallery-split p-6">
@@ -310,35 +332,6 @@ function DashboardPage() {
                 })}
               </div>
             )}
-          </div>
-
-          {/* Section: Quick Access Buttons */}
-          <div className="border-[0.5px] border-gallery-line bg-gallery-split p-6">
-            <div className="border-b-[0.5px] border-gallery-line pb-3 mb-4">
-              <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
-                AKSES CEPAT INTERFAS
-              </h3>
-            </div>
-            <div className="grid grid-cols-2 gap-3 font-sans">
-              <Link
-                to="/materials"
-                className="flex flex-col justify-between p-4 bg-gallery-base hover:bg-gallery-base/80 border-[0.5px] border-gallery-line transition-all no-underline group min-h-[80px]"
-              >
-                <span className="text-[7.5px] font-bold text-gallery-muted uppercase tracking-widest leading-none">INVENTARIS</span>
-                <span className="text-xs font-serif font-bold text-gallery-dark uppercase mt-2 group-hover:underline flex items-center gap-1.5">
-                  BAHAN BAKU <ArrowRight size={12} className="opacity-70" />
-                </span>
-              </Link>
-              <Link
-                to="/products"
-                className="flex flex-col justify-between p-4 bg-gallery-base hover:bg-gallery-base/80 border-[0.5px] border-gallery-line transition-all no-underline group min-h-[80px]"
-              >
-                <span className="text-[7.5px] font-bold text-gallery-muted uppercase tracking-widest leading-none">FORMULA</span>
-                <span className="text-xs font-serif font-bold text-gallery-dark uppercase mt-2 group-hover:underline flex items-center gap-1.5">
-                  PRODUK & BOM <ArrowRight size={12} className="opacity-70" />
-                </span>
-              </Link>
-            </div>
           </div>
 
         </div>

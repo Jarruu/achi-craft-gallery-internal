@@ -15,9 +15,28 @@ const createProductSchema = z.object({
 })
 
 export const getProducts = createServerFn({ method: 'GET' })
-  .handler(async () => {
+  .inputValidator(z.object({
+    search: z.string().optional(),
+    page: z.number().optional(),
+    limit: z.number().optional(),
+  }))
+  .handler(async ({ data }) => {
     const { prisma } = await import('#/db.server')
-    return await prisma.product.findMany({
+    const { search, page, limit } = data
+
+    const where: any = {}
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ]
+    }
+
+    const totalCount = await prisma.product.count({ where })
+
+    const findOptions: any = {
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         materials: {
@@ -25,8 +44,20 @@ export const getProducts = createServerFn({ method: 'GET' })
             material: true,
           },
         },
+        productions: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
-    })
+    }
+
+    if (page && limit) {
+      findOptions.skip = (page - 1) * limit
+      findOptions.take = limit
+    }
+
+    const items = await prisma.product.findMany(findOptions)
+
+    return { items, totalCount }
   })
 
 export const createProduct = createServerFn({ method: 'POST' })
@@ -64,6 +95,9 @@ export const createProduct = createServerFn({ method: 'POST' })
             include: {
               material: true,
             },
+          },
+          productions: {
+            orderBy: { createdAt: 'desc' },
           },
         },
       })
@@ -126,6 +160,9 @@ export const updateProduct = createServerFn({ method: 'POST' })
               material: true,
             },
           },
+          productions: {
+            orderBy: { createdAt: 'desc' },
+          },
         },
       })
     })
@@ -138,5 +175,130 @@ export const deleteProduct = createServerFn({ method: 'POST' })
     const { id } = data
     return await prisma.product.delete({
       where: { id },
+    })
+  })
+
+const startProductionSchema = z.object({
+  productId: z.string(),
+  quantity: z.number().int().positive(),
+})
+
+export const startProduction = createServerFn({ method: 'POST' })
+  .inputValidator(startProductionSchema)
+  .handler(async ({ data }) => {
+    const { prisma } = await import('#/db.server')
+    const { productId, quantity } = data
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Fetch product with materials
+      const product = await tx.product.findUniqueOrThrow({
+        where: { id: productId },
+        include: {
+          materials: {
+            include: {
+              material: true,
+            },
+          },
+        },
+      })
+
+      // 2. Check if all materials are sufficient
+      for (const pm of product.materials) {
+        const required = pm.quantityRequired * quantity
+        if (pm.material.stock < required) {
+          throw new Error(`Stok '${pm.material.name}' kurang. Dibutuhkan: ${required} ${pm.material.unit}, Tersedia: ${pm.material.stock} ${pm.material.unit}`)
+        }
+      }
+
+      // 3. Deduct stock and write logs for each material
+      for (const pm of product.materials) {
+        const required = pm.quantityRequired * quantity
+        await tx.material.update({
+          where: { id: pm.materialId },
+          data: {
+            stock: {
+              decrement: required
+            }
+          }
+        })
+
+        await tx.stockLog.create({
+          data: {
+            materialId: pm.materialId,
+            quantity: -required,
+            type: 'OUTGOING',
+            notes: `Produksi ${quantity} unit '${product.name}'`
+          }
+        })
+      }
+
+      // 4. Create the Production record
+      await tx.production.create({
+        data: {
+          productId,
+          quantity,
+          status: 'ONGOING'
+        }
+      })
+
+      // 5. Return the updated product with associations
+      return await tx.product.findUnique({
+        where: { id: productId },
+        include: {
+          materials: {
+            include: {
+              material: true,
+            },
+          },
+          productions: {
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      })
+    })
+  })
+
+const completeProductionSchema = z.object({
+  productionId: z.string(),
+})
+
+export const completeProduction = createServerFn({ method: 'POST' })
+  .inputValidator(completeProductionSchema)
+  .handler(async ({ data }) => {
+    const { prisma } = await import('#/db.server')
+    const { productionId } = data
+
+    const production = await prisma.production.update({
+      where: { id: productionId },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date()
+      }
+    })
+
+    return await prisma.product.findUnique({
+      where: { id: production.productId },
+      include: {
+        materials: {
+          include: {
+            material: true,
+          },
+        },
+        productions: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    })
+  })
+
+export const getOngoingProductions = createServerFn({ method: 'GET' })
+  .handler(async () => {
+    const { prisma } = await import('#/db.server')
+    return await prisma.production.findMany({
+      where: { status: 'ONGOING' },
+      include: {
+        product: true
+      },
+      orderBy: { createdAt: 'desc' }
     })
   })

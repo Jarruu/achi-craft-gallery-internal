@@ -1,7 +1,8 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { createFileRoute, useNavigate, useSearch, useRouter } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
+import { z } from 'zod'
 import { toast } from 'sonner'
-import { getProducts, createProduct, updateProduct, deleteProduct } from '../lib/products.functions'
+import { getProducts, createProduct, updateProduct, deleteProduct, startProduction, completeProduction, getOngoingProductions } from '../lib/products.functions'
 import { getMaterials } from '../lib/materials.functions'
 import { 
   Plus, 
@@ -14,32 +15,158 @@ import {
   MinusCircle, 
   FileText,
   X,
-  Pencil
+  Pencil,
+  Search
 } from 'lucide-react'
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { ImageUploadInput, uploadToImgBB } from '../components/ImageUploadInput'
+
+// Schema for route query params
+const searchSchema = z.object({
+  search: z.string().optional(),
+  page: z.number().catch(1).optional(),
+  limit: z.number().catch(10).optional(),
+})
 
 export const Route = createFileRoute('/products')({
-  loader: async () => {
-    const products = await getProducts()
-    const { items: materials } = await getMaterials({ data: {} })
-    return { products, materials }
+  validateSearch: searchSchema,
+  loaderDeps: ({ search }) => ({
+    search: search.search,
+    page: search.page,
+    limit: search.limit,
+  }),
+  loader: async ({ deps }) => {
+    const [productsResult, materialsResult, ongoingProductionsResult] = await Promise.all([
+      getProducts({ 
+        data: {
+          search: deps.search,
+          page: deps.page || 1,
+          limit: deps.limit || 10,
+        } 
+      }),
+      getMaterials({ data: {} }),
+      getOngoingProductions()
+    ])
+    return { 
+      products: productsResult.items, 
+      totalCount: productsResult.totalCount,
+      materials: materialsResult.items,
+      ongoingProductions: ongoingProductionsResult
+    }
   },
   component: ProductsPage,
 })
 
 function ProductsPage() {
-  const { products, materials } = Route.useLoaderData()
+  const { products, totalCount, materials, ongoingProductions } = Route.useLoaderData()
   const navigate = useNavigate()
+  const searchParams = useSearch({ from: '/products' })
+
+  const page = searchParams.page || 1
+  const limit = searchParams.limit || 10
+  const totalPages = Math.ceil(totalCount / limit)
+
+  const handlePageChange = (newPage: number) => {
+    navigate({
+      to: '/products',
+      search: (prev) => ({
+        ...prev,
+        page: newPage,
+      }),
+    })
+  }
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    navigate({
+      to: '/products',
+      search: (prev) => {
+        const next = { ...prev }
+        if (searchInput.trim()) {
+          next.search = searchInput.trim()
+        } else {
+          delete next.search
+        }
+        next.page = 1
+        return next
+      }
+    })
+  }
 
   // State management
   const [selectedProduct, setSelectedProduct] = useState<any>(null)
+
+  // State for production feature
+  const router = useRouter()
+  const [productionQty, setProductionQty] = useState<number>(1)
+  const [isProducing, setIsProducing] = useState(false)
+  const [completingId, setCompletingId] = useState<string | null>(null)
+
+  // Reset production quantity when selected product changes
+  useEffect(() => {
+    setProductionQty(1)
+  }, [selectedProduct?.id])
+
+  const handleStartProduction = async () => {
+    if (!selectedProduct) return
+    setIsProducing(true)
+    try {
+      const updated = await startProduction({
+        data: {
+          productId: selectedProduct.id,
+          quantity: productionQty
+        }
+      })
+      
+      toast.success('Produksi Dimulai', {
+        description: `Berhasil memulai produksi ${productionQty} unit untuk '${selectedProduct.name}'. Bahan baku telah dikurangi.`
+      })
+      
+      setSelectedProduct(updated)
+      setProductionQty(1)
+      await router.invalidate()
+    } catch (err: any) {
+      toast.error('Gagal Memulai Produksi', {
+        description: err.message || 'Terjadi kesalahan.'
+      })
+    } finally {
+      setIsProducing(false)
+    }
+  }
+
+  const handleCompleteProduction = async (productionId: string) => {
+    setCompletingId(productionId)
+    try {
+      const updated = await completeProduction({
+        data: {
+          productionId
+        }
+      })
+
+      toast.success('Produksi Selesai', {
+        description: `Proses produksi telah selesai.`
+      })
+
+      setSelectedProduct(updated)
+      await router.invalidate()
+    } catch (err: any) {
+      toast.error('Gagal Menyelesaikan Produksi', {
+        description: err.message || 'Terjadi kesalahan.'
+      })
+    } finally {
+      setCompletingId(null)
+    }
+  }
   const [isAdding, setIsAdding] = useState(false)
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
+  const [searchInput, setSearchInput] = useState(searchParams.search || '')
   const [newProduct, setNewProduct] = useState({
     name: '',
     description: '',
     imageUrl: '',
   })
+  const [newProductFile, setNewProductFile] = useState<File | null>(null)
   
   // State for dynamic BOM inputs in creation form
   const [selectedBOMItems, setSelectedBOMItems] = useState<Array<{
@@ -79,6 +206,7 @@ function ProductsPage() {
     description: '',
     imageUrl: '',
   })
+  const [editProductFile, setEditProductFile] = useState<File | null>(null)
   const [editBOMItems, setEditBOMItems] = useState<Array<{
     materialId: string
     quantityRequired: number
@@ -106,6 +234,7 @@ function ProductsPage() {
   }
 
   const startEdit = (p: any) => {
+    setEditProductFile(null)
     setEditProductData({
       id: p.id,
       name: p.name,
@@ -131,13 +260,21 @@ function ProductsPage() {
       return
     }
 
+    let uploadedUrl = editProductData.imageUrl || null
+
     try {
+      if (editProductFile) {
+        toast.info('Sedang mengunggah gambar...', { id: 'upload-toast' })
+        uploadedUrl = await uploadToImgBB(editProductFile)
+        toast.success('Gambar berhasil diunggah', { id: 'upload-toast' })
+      }
+
       const updated = await updateProduct({
         data: {
           id: editProductData.id,
           name: editProductData.name,
           description: editProductData.description || null,
-          imageUrl: editProductData.imageUrl || null,
+          imageUrl: uploadedUrl,
           materials: filteredBOM.map(item => ({
             materialId: item.materialId,
             quantityRequired: Number(item.quantityRequired),
@@ -151,12 +288,11 @@ function ProductsPage() {
       })
 
       setIsEditing(false)
+      setEditProductFile(null)
       setSelectedProduct(updated)
-      navigate({ to: '/products' })
+      navigate({ to: '/products', search: searchParams })
     } catch (err: any) {
-      toast.error('Gagal Memperbarui Produk', {
-        description: err.message || 'Terjadi kesalahan.'
-      })
+      toast.error('Gagal Memperbarui Produk', { description: err.message })
     }
   }
 
@@ -169,7 +305,7 @@ function ProductsPage() {
       })
       setSelectedProduct(null)
       setIsDeleteDialogOpen(false)
-      navigate({ to: '/products' })
+      navigate({ to: '/products', search: searchParams })
     } catch (err: any) {
       toast.error('Gagal Menghapus Produk', {
         description: err.message || 'Terjadi kesalahan.'
@@ -190,12 +326,20 @@ function ProductsPage() {
       return
     }
 
+    let uploadedUrl = newProduct.imageUrl || null
+
     try {
+      if (newProductFile) {
+        toast.info('Sedang mengunggah gambar...', { id: 'upload-toast' })
+        uploadedUrl = await uploadToImgBB(newProductFile)
+        toast.success('Gambar berhasil diunggah', { id: 'upload-toast' })
+      }
+
       const created = await createProduct({
         data: {
           name: newProduct.name,
           description: newProduct.description || null,
-          imageUrl: newProduct.imageUrl || null,
+          imageUrl: uploadedUrl,
           materials: filteredBOM.map(item => ({
             materialId: item.materialId,
             quantityRequired: Number(item.quantityRequired),
@@ -210,15 +354,16 @@ function ProductsPage() {
 
       // Reset
       setIsAdding(false)
+      setNewProductFile(null)
       setNewProduct({ name: '', description: '', imageUrl: '' })
       setSelectedBOMItems([{ materialId: '', quantityRequired: 1, notes: '' }])
       setSelectedProduct(created)
       
       // Reload route data
-      navigate({ to: '/products' })
+      navigate({ to: '/products', search: searchParams })
     } catch (err: any) {
-      toast.error('Gagal Menyimpan Produk', {
-        description: err.message || 'Terjadi kesalahan saat menyimpan cetak biru produk.'
+      toast.error('Gagal Menambahkan Produk', {
+        description: err.message || 'Terjadi kesalahan saat menyimpan data.'
       })
     }
   }
@@ -325,15 +470,129 @@ function ProductsPage() {
             </button>
           </div>
 
-          {/* Product Innovations Grid List */}
+          {/* SEARCH FORM */}
+          <form onSubmit={handleSearchSubmit} className="flex gap-3 items-stretch">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gallery-muted" />
+              <input
+                type="text"
+                placeholder="Cari nama produk, deskripsi..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="w-full bg-gallery-split border-[0.5px] border-gallery-line pl-10 pr-4 py-2 text-xs font-semibold text-gallery-dark placeholder-gallery-muted focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <button
+              type="submit"
+              className="bg-gallery-dark text-gallery-base px-6 py-2 text-xs font-bold uppercase tracking-widest hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+            >
+              Cari
+            </button>
+          </form>
+
+          {/* VIEW MODE TOGGLE AND HEADER */}
+          <div className="flex justify-between items-center border-b-[0.5px] border-gallery-line pb-3">
+            <span className="text-[10px] uppercase tracking-widest text-gallery-muted font-bold">
+              Menampilkan {products.length} dari {totalCount} Produk
+            </span>
+            <div className="flex gap-1 border-[0.5px] border-gallery-line bg-gallery-split p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  viewMode === 'grid' 
+                    ? 'bg-gallery-dark text-gallery-base' 
+                    : 'text-gallery-muted hover:text-gallery-dark'
+                }`}
+              >
+                Grid
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`px-3 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  viewMode === 'table' 
+                    ? 'bg-gallery-dark text-gallery-base' 
+                    : 'text-gallery-muted hover:text-gallery-dark'
+                }`}
+              >
+                Tabel
+              </button>
+            </div>
+          </div>
+
+          {/* Catalog rendering */}
           {products.length === 0 ? (
             <div className="border-[0.5px] border-gallery-line border-dashed p-12 text-center text-xs tracking-wider text-gallery-muted uppercase font-semibold">
-              Belum ada produk yang terdaftar. Klik "Tambah Produk Baru" untuk memulai.
+              Produk tidak ditemukan. Coba cari dengan kata kunci lain.
+            </div>
+          ) : viewMode === 'table' ? (
+            /* COMPACT TABLE LAYOUT */
+            <div className="border-[0.5px] border-gallery-line bg-gallery-split overflow-hidden">
+              <table className="w-full text-left border-collapse table-auto">
+                <thead>
+                  <tr className="border-b-[0.5px] border-gallery-line bg-gallery-base/40 text-[9px] font-bold uppercase tracking-widest text-gallery-muted">
+                    <th className="py-3 px-2 sm:px-4 font-bold w-12 text-center">Visual</th>
+                    <th className="py-3 px-2 sm:px-4 font-bold">Nama Produk</th>
+                    <th className="hidden sm:table-cell py-3 px-2 sm:px-4 font-bold">Deskripsi</th>
+                    <th className="py-3 px-2 sm:px-4 font-bold text-center">Bahan Baku</th>
+                    <th className="py-3 px-2 sm:px-4 font-bold text-right">Status Ketersediaan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gallery-line text-xs font-semibold text-gallery-dark">
+                  {products.map((p) => {
+                    const shortItems = p.materials.filter((pm: any) => pm.material.stock < pm.quantityRequired)
+                    const hasWarnings = shortItems.length > 0
+                    const totalBOMItems = p.materials.length
+
+                    return (
+                      <tr 
+                        key={p.id}
+                        onClick={() => {
+                          setSelectedProduct(p)
+                          setIsAdding(false)
+                        }}
+                        className={`cursor-pointer hover:bg-gallery-base/50 transition-colors ${
+                          selectedProduct?.id === p.id ? 'bg-gallery-base/80' : ''
+                        } ${hasWarnings ? 'bg-red-50/5' : ''}`}
+                      >
+                        <td className="py-3 px-2 sm:px-4 text-center">
+                          <div className="w-6 h-6 border-[0.5px] border-gallery-line shrink-0 flex items-center justify-center relative overflow-hidden bg-white mx-auto">
+                            {p.imageUrl && p.imageUrl.trim().startsWith('http') ? (
+                              <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Cpu size={12} className="text-gallery-muted" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-2 sm:px-4 font-serif text-[13px] font-bold text-gallery-dark">{p.name}</td>
+                        <td className="hidden sm:table-cell py-3 px-2 sm:px-4 text-gallery-muted font-normal italic truncate max-w-[200px]">
+                          {p.description || '-'}
+                        </td>
+                        <td className="py-3 px-2 sm:px-4 text-center">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 bg-gallery-base border-[0.5px] border-gallery-line font-mono">
+                            {totalBOMItems} jenis
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 sm:px-4 text-right">
+                          <span className={`px-2 py-0.5 text-[8px] font-bold tracking-wider uppercase ${
+                            !hasWarnings 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {!hasWarnings ? 'Bahan Siap' : 'Bahan Kurang'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           ) : (
+            /* RICH GRID LAYOUT */
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {products.map((p) => {
-                // Calculate how many ingredients are short of stock
                 const shortItems = p.materials.filter(pm => pm.material.stock < pm.quantityRequired)
                 const hasWarnings = shortItems.length > 0
 
@@ -409,10 +668,67 @@ function ProductsPage() {
                         )}
                       </div>
                     </div>
-
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* PAGINATION CONTROLS */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between border-[0.5px] border-gallery-line bg-gallery-split p-4 gap-3 text-xs font-semibold text-gallery-dark mt-6">
+              <span className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                Halaman {page} dari {totalPages} (Total {totalCount} produk)
+              </span>
+              
+              <div className="flex items-center gap-1.5 flex-wrap justify-center font-sans">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => handlePageChange(page - 1)}
+                  className="px-3 py-1.5 border-[0.5px] border-gallery-line bg-gallery-base hover:border-gallery-dark disabled:opacity-40 disabled:hover:border-gallery-line disabled:cursor-not-allowed transition-all uppercase tracking-widest text-[9px] font-bold cursor-pointer"
+                >
+                  Sebelumnya
+                </button>
+                
+                {/* Page numbers */}
+                {Array.from({ length: totalPages }).map((_, idx) => {
+                  const pageNum = idx + 1
+                  const isCurrent = pageNum === page
+                  const isNear = Math.abs(pageNum - page) <= 1
+                  const isBoundary = pageNum === 1 || pageNum === totalPages
+ 
+                  if (isBoundary || isNear) {
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`w-8 h-8 flex items-center justify-center border-[0.5px] transition-all text-[10px] font-bold cursor-pointer ${
+                          isCurrent
+                            ? 'bg-gallery-dark text-gallery-base border-gallery-dark'
+                            : 'bg-gallery-base border-gallery-line hover:border-gallery-dark'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  }
+                  if (pageNum === 2 || pageNum === totalPages - 1) {
+                    return <span key={pageNum} className="text-gallery-muted px-1">...</span>
+                  }
+                  return null
+                })}
+                
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => handlePageChange(page + 1)}
+                  className="px-3 py-1.5 border-[0.5px] border-gallery-line bg-gallery-base hover:border-gallery-dark disabled:opacity-40 disabled:hover:border-gallery-line disabled:cursor-not-allowed transition-all uppercase tracking-widest text-[9px] font-bold cursor-pointer"
+                >
+                  Selanjutnya
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -435,31 +751,56 @@ function ProductsPage() {
                 <h3 className="font-serif text-2xl tracking-tight text-gallery-dark mt-0.5">
                   {selectedProduct.name}
                 </h3>
-                {/* Actions inline */}
-                <div className="flex items-center gap-3 mt-3">
-                  <button 
-                    onClick={() => startEdit(selectedProduct)}
-                    className="flex items-center gap-1.5 text-[10px] font-bold text-gallery-dark uppercase tracking-wider hover:underline transition-all cursor-pointer"
-                  >
-                    <Pencil size={11} />
-                    <span>Edit</span>
-                  </button>
-                  <span className="text-gallery-muted text-[10px]">•</span>
-                  <button 
-                    onClick={() => setIsDeleteDialogOpen(true)}
-                    className="flex items-center gap-1.5 text-[10px] font-bold text-red-700 uppercase tracking-wider hover:underline transition-all cursor-pointer"
-                  >
-                    <Trash2 size={11} />
-                    <span>Hapus</span>
-                  </button>
-                </div>
               </div>
-              <button 
-                onClick={() => setSelectedProduct(null)}
-                className="p-2 border-[0.5px] border-gallery-line hover:border-gallery-dark transition-colors bg-gallery-base"
-              >
-                <X size={14} />
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => startEdit(selectedProduct)}
+                  className="p-2 border-[0.5px] border-gallery-line hover:border-gallery-dark hover:text-gallery-dark transition-colors bg-gallery-base cursor-pointer"
+                  title="Edit Rancangan Produk"
+                >
+                  <Pencil size={14} />
+                </button>
+                <button 
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  className="p-2 border-[0.5px] border-gallery-line hover:border-red-600 hover:text-red-600 transition-colors bg-gallery-base cursor-pointer"
+                  title="Hapus Rancangan Produk"
+                >
+                  <Trash2 size={14} />
+                </button>
+                <button 
+                  onClick={() => setSelectedProduct(null)}
+                  className="p-2 border-[0.5px] border-gallery-line hover:border-gallery-dark transition-colors bg-gallery-base cursor-pointer"
+                  title="Tutup Panel"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Product Image */}
+            <div className="border-[0.5px] border-gallery-line overflow-hidden bg-gallery-base">
+              {selectedProduct.imageUrl && selectedProduct.imageUrl.startsWith('http') ? (
+                <div className="w-full h-44 relative overflow-hidden group">
+                  <img 
+                    src={selectedProduct.imageUrl} 
+                    alt={selectedProduct.name} 
+                    className="w-full h-full object-cover transition-transform duration-700 ease-out hover:scale-105"
+                  />
+                  <div className="absolute top-2 right-2 px-2 py-0.5 bg-gallery-dark text-[8px] tracking-widest text-gallery-base uppercase font-semibold">
+                    Cetak Biru (BOM)
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full h-44 flex flex-col items-center justify-center relative p-6 bg-gallery-base/40">
+                  <div className="w-12 h-12 border-[0.5px] border-gallery-line flex items-center justify-center relative bg-white">
+                    <Cpu size={18} className="text-gallery-muted" />
+                    <div className="absolute inset-0 border border-dashed border-gallery-muted/20 animate-spin" style={{ animationDuration: '30s' }} />
+                  </div>
+                  <span className="text-[7px] uppercase tracking-widest text-gallery-muted font-bold mt-2.5">
+                    Belum Ada Foto Produk
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Description */}
@@ -530,6 +871,128 @@ function ProductsPage() {
               </div>
             </div>
 
+            {/* PRODUKSI PRODUK SECTION */}
+            <div className="space-y-3 pt-4 border-t-[0.5px] border-gallery-line">
+              <h4 className="text-[10px] uppercase tracking-[0.18em] text-gallery-dark font-bold flex items-center gap-1.5 pb-1">
+                <Cpu size={14} className="text-gallery-dark" />
+                PRODUKSI PRODUK
+              </h4>
+
+              <div className="bg-gallery-base/40 p-4 border-[0.5px] border-gallery-line flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                <div className="flex items-center justify-between sm:justify-start gap-4">
+                  <span className="text-[11px] font-semibold text-gallery-dark uppercase tracking-wider font-sans">
+                    Jumlah:
+                  </span>
+                  <div className="flex items-center border-[0.5px] border-gallery-line bg-white">
+                    <button
+                      type="button"
+                      onClick={() => setProductionQty(prev => Math.max(1, prev - 1))}
+                      className="px-2.5 py-1 text-gallery-dark hover:bg-gallery-base transition-colors border-r-[0.5px] border-gallery-line cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      disabled={productionQty <= 1 || isProducing}
+                    >
+                      <MinusCircle size={13} />
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={productionQty}
+                      onChange={(e) => setProductionQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      disabled={isProducing}
+                      className="w-12 text-center text-xs font-bold font-mono text-gallery-dark focus:outline-none py-0.5 bg-transparent"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setProductionQty(prev => prev + 1)}
+                      disabled={isProducing}
+                      className="px-2.5 py-1 text-gallery-dark hover:bg-gallery-base transition-colors border-l-[0.5px] border-gallery-line cursor-pointer"
+                    >
+                      <PlusCircle size={13} />
+                    </button>
+                  </div>
+                </div>
+
+                {(() => {
+                  const canProduce = selectedProduct.materials.length > 0 && selectedProduct.materials.every((pm: any) => pm.material.stock >= pm.quantityRequired * productionQty)
+                  return (
+                    <button
+                      type="button"
+                      onClick={handleStartProduction}
+                      disabled={!canProduce || isProducing}
+                      className={`px-4 py-2 text-[9px] font-bold uppercase tracking-widest transition-all duration-300 cursor-pointer flex items-center justify-center gap-1.5 ${
+                        canProduce
+                          ? 'bg-gallery-dark text-gallery-base hover:bg-gallery-dark/95 hover:tracking-[0.16em] active:scale-[0.98]'
+                          : 'bg-gallery-line text-gallery-muted cursor-not-allowed border-[0.5px] border-gallery-line'
+                      }`}
+                    >
+                      {isProducing ? 'Memproses...' : 'Mulai Produksi'}
+                    </button>
+                  )
+                })()}
+              </div>
+
+              {/* KEBUTUHAN BAHAN BAKU UNTUK JUMLAH TERPILIH */}
+              <div className="border-[0.5px] border-gallery-line bg-gallery-base/20 p-3 space-y-2">
+                <span className="text-[8px] uppercase tracking-widest text-gallery-muted font-bold block">
+                  Estimasi Kebutuhan Bahan Baku ({productionQty} unit)
+                </span>
+                <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                  {selectedProduct.materials.map((pm: any) => {
+                    const totalNeeded = pm.quantityRequired * productionQty
+                    const hasStock = pm.material.stock >= totalNeeded
+                    return (
+                      <div 
+                        key={pm.id} 
+                        className={`p-2 border-[0.5px] text-[11px] font-sans flex items-center justify-between gap-4 transition-all duration-300 ${
+                          hasStock ? 'border-gallery-line bg-white text-gallery-dark' : 'border-red-200 bg-red-50/20 text-red-700 font-bold'
+                        }`}
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{pm.material.name}</span>
+                          <span className="text-[8px] text-gallery-muted tracking-wider uppercase font-mono mt-0.5">
+                            {pm.material.sku}
+                          </span>
+                        </div>
+                        <div className="text-right flex flex-col font-mono">
+                          <span className="font-bold">
+                            {totalNeeded.toFixed(2)} {pm.material.unit}
+                          </span>
+                          <span className="text-[8px] text-gallery-muted uppercase mt-0.5">
+                            Tersedia: {pm.material.stock.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {(() => {
+                const canProduce = selectedProduct.materials.length > 0 && selectedProduct.materials.every((pm: any) => pm.material.stock >= pm.quantityRequired * productionQty)
+                return !canProduce && (
+                  <div className="p-3 bg-red-50/30 border-[0.5px] border-red-200 text-[10px] text-red-700 font-semibold flex items-start gap-1.5 leading-relaxed animate-fade-in">
+                    <AlertTriangle size={14} className="shrink-0 mt-0.5 text-red-700" />
+                    <div>
+                      <span>Stok bahan baku tidak mencukupi untuk memproduksi {productionQty} unit.</span>
+                      <div className="mt-1 font-mono text-[9px] text-red-600/90 space-y-0.5">
+                        {selectedProduct.materials.map((pm: any) => {
+                          const needed = pm.quantityRequired * productionQty
+                          const hasStock = pm.material.stock >= needed
+                          if (!hasStock) {
+                            return (
+                              <div key={pm.id}>
+                                • {pm.material.name}: butuh {needed.toFixed(2)} {pm.material.unit} (ada {pm.material.stock.toFixed(2)})
+                              </div>
+                            )
+                          }
+                          return null
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+
           </div>
         )}
 
@@ -559,6 +1022,63 @@ function ProductsPage() {
           </div>
         )}
 
+        {/* PRODUKSI BERJALAN (ONGOING PRODUCTIONS) GLOBAL CARD */}
+        <div className="bg-gallery-split border-[0.5px] border-gallery-dark p-6 space-y-4">
+          <h3 className="font-serif text-base tracking-tight text-gallery-dark uppercase border-b-[0.5px] border-gallery-line pb-2.5 flex items-center gap-2">
+            <FileText size={16} />
+            PRODUKSI BERJALAN ({ongoingProductions.length})
+          </h3>
+
+          {ongoingProductions.length === 0 ? (
+            <div className="border-[0.5px] border-dashed border-gallery-line bg-gallery-base/10 p-6 text-center text-[10px] uppercase tracking-wider text-gallery-muted font-semibold">
+              Tidak ada produksi aktif saat ini.
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+              {ongoingProductions.map((prod: any) => (
+                <div
+                  key={prod.id}
+                  className="p-3.5 border-[0.5px] border-gallery-line bg-white flex items-center justify-between gap-4 text-xs hover:border-gallery-dark/40 transition-all duration-300"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Tiny Product visual */}
+                    <div className="w-8 h-8 border-[0.5px] border-gallery-line shrink-0 flex items-center justify-center relative overflow-hidden bg-gallery-base">
+                      {prod.product?.imageUrl && prod.product.imageUrl.trim().startsWith('http') ? (
+                        <img src={prod.product.imageUrl} alt={prod.product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Cpu size={12} className="text-gallery-muted" />
+                      )}
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="text-[11px] font-bold text-gallery-dark font-sans tracking-wide uppercase">
+                        {prod.product?.name}
+                      </div>
+                      <div className="text-[10px] text-gallery-dark/80 font-sans">
+                        Jumlah: <span className="font-serif font-bold text-xs">{prod.quantity} unit</span>
+                      </div>
+                      <p className="text-[9px] text-gallery-muted font-medium font-sans">
+                        Mulai: {new Date(prod.createdAt).toLocaleString('id-ID', {
+                          dateStyle: 'short',
+                          timeStyle: 'short'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCompleteProduction(prod.id)}
+                    disabled={completingId === prod.id}
+                    className="px-3 py-1.5 border-[0.5px] border-gallery-dark bg-white hover:bg-gallery-dark hover:text-gallery-base transition-all duration-300 uppercase tracking-widest text-[9px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {completingId === prod.id ? 'Memproses...' : 'Selesai'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
 
@@ -572,44 +1092,41 @@ function ProductsPage() {
         <form onSubmit={handleSubmitProduct} className="space-y-4 flex flex-col overflow-hidden">
           {/* Scrollable inputs section to fit 1 page */}
           <div className="overflow-y-auto pr-2 space-y-4 max-h-[55vh] md:max-h-[60vh] custom-scrollbar flex-1">
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Nama Produk*
-              </label>
-              <input 
-                type="text" 
-                required 
-                placeholder="cth. Dompet Kulit Minimalis"
-                value={newProduct.name}
-                onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
-              />
-            </div>
+            <ImageUploadInput
+              label="Foto / Gambar Produk"
+              existingUrl={newProduct.imageUrl}
+              file={newProductFile}
+              onFileChange={setNewProductFile}
+              onClearExisting={() => setNewProduct({ ...newProduct, imageUrl: '' })}
+            />
 
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Link Foto / Gambar Produk
-              </label>
-              <input 
-                type="text" 
-                placeholder="e.g. https://... (Optional)"
-                value={newProduct.imageUrl || ''}
-                onChange={(e) => setNewProduct({...newProduct, imageUrl: e.target.value})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                  Nama Produk*
+                </label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="cth. Dompet Kulit Minimalis"
+                  value={newProduct.name}
+                  onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
+                />
+              </div>
 
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Deskripsi & Penjelasan Produk
-              </label>
-              <textarea 
-                rows={2}
-                placeholder="Tuliskan detail produk, gaya, atau catatan pembuatan di sini..."
-                value={newProduct.description || ''}
-                onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans resize-none"
-              />
+              <div className="space-y-1">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                  Deskripsi & Penjelasan Produk
+                </label>
+                <textarea 
+                  rows={3}
+                  placeholder="e.g. Dompet minimalis gaya Nordic yang terbuat dari bahan premium..."
+                  value={newProduct.description || ''}
+                  onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans resize-y min-h-[60px]"
+                />
+              </div>
             </div>
 
             {/* Dynamic BOM ingredient selectors */}
@@ -627,7 +1144,7 @@ function ProductsPage() {
                 </button>
               </div>
 
-              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                 {selectedBOMItems.map((item, index) => (
                   <div key={index} className="bg-gallery-base p-3 border-[0.5px] border-gallery-line space-y-2 relative">
                     {selectedBOMItems.length > 1 && (
@@ -715,44 +1232,41 @@ function ProductsPage() {
         <form onSubmit={handleEditProductSubmit} className="space-y-4 flex flex-col overflow-hidden">
           {/* Scrollable inputs section to fit 1 page */}
           <div className="overflow-y-auto pr-2 space-y-4 max-h-[55vh] md:max-h-[60vh] custom-scrollbar flex-1">
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Nama Produk*
-              </label>
-              <input 
-                type="text" 
-                required 
-                placeholder="cth. Dompet Kulit Minimalis"
-                value={editProductData.name}
-                onChange={(e) => setEditProductData({...editProductData, name: e.target.value})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
-              />
-            </div>
+            <ImageUploadInput
+              label="Foto / Gambar Produk"
+              existingUrl={editProductData.imageUrl}
+              file={editProductFile}
+              onFileChange={setEditProductFile}
+              onClearExisting={() => setEditProductData({ ...editProductData, imageUrl: '' })}
+            />
 
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Link Foto / Gambar Produk
-              </label>
-              <input 
-                type="text" 
-                placeholder="e.g. https://... (Optional)"
-                value={editProductData.imageUrl || ''}
-                onChange={(e) => setEditProductData({...editProductData, imageUrl: e.target.value})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                  Nama Produk*
+                </label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="cth. Dompet Kulit Minimalis"
+                  value={editProductData.name}
+                  onChange={(e) => setEditProductData({...editProductData, name: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans"
+                />
+              </div>
 
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Deskripsi & Penjelasan Produk
-              </label>
-              <textarea 
-                rows={2}
-                placeholder="Tuliskan detail produk, gaya, atau catatan pembuatan di sini..."
-                value={editProductData.description || ''}
-                onChange={(e) => setEditProductData({...editProductData, description: e.target.value})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans resize-none"
-              />
+              <div className="space-y-1">
+                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+                  Deskripsi & Penjelasan Produk
+                </label>
+                <textarea 
+                  rows={3}
+                  placeholder="e.g. Dompet minimalis gaya Nordic yang terbuat dari bahan premium..."
+                  value={editProductData.description || ''}
+                  onChange={(e) => setEditProductData({...editProductData, description: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans resize-y min-h-[60px]"
+                />
+              </div>
             </div>
 
             {/* Dynamic BOM ingredient selectors */}
@@ -770,7 +1284,7 @@ function ProductsPage() {
                 </button>
               </div>
 
-              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                 {editBOMItems.map((item, index) => (
                   <div key={index} className="bg-gallery-base p-3 border-[0.5px] border-gallery-line space-y-2 relative">
                     {editBOMItems.length > 1 && (

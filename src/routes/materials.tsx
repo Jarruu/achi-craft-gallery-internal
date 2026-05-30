@@ -37,6 +37,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '../components/ui/dialog'
+import { ImageUploadInput, uploadToImgBB } from '../components/ImageUploadInput'
 
 // Schema for route query params
 const searchSchema = z.object({
@@ -72,6 +73,7 @@ export const Route = createFileRoute('/materials')({
     return { 
       materials: materialsResult.items, 
       totalCount: materialsResult.totalCount,
+      allMaterials: materialsResult.allMaterials,
       options 
     }
   },
@@ -180,7 +182,7 @@ function MaterialVisual({ type, colorPattern, imageUrl }: { type: string, colorP
 }
 
 function MaterialsPage() {
-  const { materials, totalCount, options } = Route.useLoaderData()
+  const { materials, totalCount, options, allMaterials } = Route.useLoaderData()
   const searchParams = useSearch({ from: '/materials' })
   const navigate = useNavigate()
 
@@ -202,7 +204,7 @@ function MaterialsPage() {
   const [selectedMaterial, setSelectedMaterial] = useState<any>(null)
   const [isAdding, setIsAdding] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table')
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
 
   // Edit Material States & Handlers
   const [isEditing, setIsEditing] = useState(false)
@@ -219,8 +221,10 @@ function MaterialsPage() {
     imageUrl: '',
     expiredAt: '',
   })
+  const [editMaterialFile, setEditMaterialFile] = useState<File | null>(null)
 
   const startEdit = (m: any) => {
+    setEditMaterialFile(null)
     setEditMaterialData({
       id: m.id,
       sku: m.sku,
@@ -239,7 +243,15 @@ function MaterialsPage() {
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    let uploadedUrl = editMaterialData.imageUrl || null
+
     try {
+      if (editMaterialFile) {
+        toast.info('Sedang mengunggah gambar...', { id: 'upload-toast' })
+        uploadedUrl = await uploadToImgBB(editMaterialFile)
+        toast.success('Gambar berhasil diunggah', { id: 'upload-toast' })
+      }
+
       const updated = await updateMaterial({
         data: {
           id: editMaterialData.id,
@@ -251,7 +263,7 @@ function MaterialsPage() {
           size: editMaterialData.size,
           unit: editMaterialData.unit,
           colorPattern: editMaterialData.colorPattern,
-          imageUrl: editMaterialData.imageUrl || null,
+          imageUrl: uploadedUrl,
           expiredAt: editMaterialData.expiredAt || null,
         }
       })
@@ -259,6 +271,7 @@ function MaterialsPage() {
         description: `Bahan baku ${editMaterialData.name} berhasil disimpan.`
       })
       setIsEditing(false)
+      setEditMaterialFile(null)
       setSelectedMaterial(updated)
       navigate({ to: '/materials', search: searchParams })
     } catch (err: any) {
@@ -285,6 +298,7 @@ function MaterialsPage() {
     imageUrl: '',
     expiredAt: '',
   })
+  const [newMaterialFile, setNewMaterialFile] = useState<File | null>(null)
 
   // Inline dynamic option creation states & handlers for quick UX
   const [isAddingTypeInline, setIsAddingTypeInline] = useState(false)
@@ -396,20 +410,28 @@ function MaterialsPage() {
   // Alert and expiry states
   const now = new Date()
   const lowStockThresholds: Record<string, number> = {
-    LEATHER: 15,
-    FABRIC: 20,
+    LEATHER: 10,
+    FABRIC: 10,
     ZIPPER: 10,
-    GLUE: 5,
-    ACCESSORY: 8,
+    GLUE: 10,
+    ACCESSORY: 10,
   }
 
   // Filter low stock and expiring
-  const lowStockMaterials = materials.filter(m => m.stock < (lowStockThresholds[m.type] || 10))
-  const expiringMaterials = materials.filter(m => {
+  const materialsForWarnings = allMaterials || []
+  const outOfStockMaterials = materialsForWarnings.filter(m => m.stock <= 0)
+  const lowStockMaterials = materialsForWarnings.filter(m => m.stock > 0 && m.stock < (lowStockThresholds[m.type] || 10))
+  const expiredMaterials = materialsForWarnings.filter(m => {
     if (!m.expiredAt) return false
     const expDate = new Date(m.expiredAt)
     const diffDays = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-    return diffDays >= 0 && diffDays <= 60 // Less than 60 days
+    return diffDays < 0
+  })
+  const almostExpiringMaterials = materialsForWarnings.filter(m => {
+    if (!m.expiredAt) return false
+    const expDate = new Date(m.expiredAt)
+    const diffDays = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    return diffDays >= 0 && diffDays <= 30 // Less than 30 days
   })
 
   const updateFilters = (key: string, value: string | undefined) => {
@@ -436,7 +458,15 @@ function MaterialsPage() {
   // Handle Add Material
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    let uploadedUrl = newMaterial.imageUrl || null
+
     try {
+      if (newMaterialFile) {
+        toast.info('Sedang mengunggah gambar...', { id: 'upload-toast' })
+        uploadedUrl = await uploadToImgBB(newMaterialFile)
+        toast.success('Gambar berhasil diunggah', { id: 'upload-toast' })
+      }
+
       await createMaterial({
         data: {
           sku: newMaterial.sku.toUpperCase(),
@@ -448,7 +478,7 @@ function MaterialsPage() {
           stock: Number(newMaterial.stock),
           unit: newMaterial.unit,
           colorPattern: newMaterial.colorPattern,
-          imageUrl: newMaterial.imageUrl || null,
+          imageUrl: uploadedUrl,
           expiredAt: newMaterial.expiredAt || null,
         }
       })
@@ -459,6 +489,7 @@ function MaterialsPage() {
 
       // Reset & Reload
       setIsAdding(false)
+      setNewMaterialFile(null)
       setNewMaterial({
         sku: '',
         name: '',
@@ -553,7 +584,7 @@ function MaterialsPage() {
     <div className="space-y-8 rise-in">
       
       {/* FULL-WIDTH KPI WIDGETS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         {/* Widget 1: Total Materials */}
         <div className="bg-gallery-split border-[0.5px] border-gallery-line p-6 flex justify-between items-center relative group hover:border-gallery-dark duration-300">
           <div className="space-y-1">
@@ -561,7 +592,7 @@ function MaterialsPage() {
               TOTAL BAHAN BAKU
             </span>
             <div className="text-3xl font-serif text-gallery-dark font-bold mt-1.5">
-              {materials.length}
+              {totalCount}
             </div>
             <span className="text-[10px] text-gallery-muted font-semibold block">
               Item terdaftar di inventaris
@@ -572,17 +603,41 @@ function MaterialsPage() {
           </div>
         </div>
 
-        {/* Widget 2: Low Stock Warning */}
+        {/* Widget 2: Out of Stock Warning */}
         <div className={`border-[0.5px] p-6 flex justify-between items-center relative duration-300 ${
-          lowStockMaterials.length > 0 
+          outOfStockMaterials.length > 0 
             ? 'bg-red-50/20 border-red-200 hover:border-red-400' 
             : 'bg-gallery-split border-gallery-line hover:border-gallery-dark'
         }`}>
           <div className="space-y-1">
             <span className="text-[9px] uppercase tracking-[0.25em] text-gallery-muted font-bold block">
-              PERINGATAN STOK MENIPIS
+              STOK HABIS
             </span>
-            <div className={`text-3xl font-serif font-bold mt-1.5 ${lowStockMaterials.length > 0 ? 'text-red-700' : 'text-gallery-dark'}`}>
+            <div className={`text-3xl font-serif font-bold mt-1.5 ${outOfStockMaterials.length > 0 ? 'text-red-700' : 'text-gallery-dark'}`}>
+              {outOfStockMaterials.length}
+            </div>
+            <span className="text-[10px] text-gallery-muted font-semibold block">
+              Bahan baku kosong
+            </span>
+          </div>
+          <div className={`w-12 h-12 flex items-center justify-center border-[0.5px] ${
+            outOfStockMaterials.length > 0 ? 'bg-red-100/55 border-red-200' : 'bg-gallery-base border-gallery-line'
+          }`}>
+            <AlertTriangle size={18} className={outOfStockMaterials.length > 0 ? 'text-red-700' : 'text-gallery-dark'} />
+          </div>
+        </div>
+
+        {/* Widget 3: Low Stock Warning */}
+        <div className={`border-[0.5px] p-6 flex justify-between items-center relative duration-300 ${
+          lowStockMaterials.length > 0 
+            ? 'bg-amber-50/20 border-amber-200 hover:border-amber-400' 
+            : 'bg-gallery-split border-gallery-line hover:border-gallery-dark'
+        }`}>
+          <div className="space-y-1">
+            <span className="text-[9px] uppercase tracking-[0.25em] text-gallery-muted font-bold block">
+              STOK MENIPIS
+            </span>
+            <div className={`text-3xl font-serif font-bold mt-1.5 ${lowStockMaterials.length > 0 ? 'text-amber-700' : 'text-gallery-dark'}`}>
               {lowStockMaterials.length}
             </div>
             <span className="text-[10px] text-gallery-muted font-semibold block">
@@ -590,33 +645,57 @@ function MaterialsPage() {
             </span>
           </div>
           <div className={`w-12 h-12 flex items-center justify-center border-[0.5px] ${
-            lowStockMaterials.length > 0 ? 'bg-red-100/55 border-red-200' : 'bg-gallery-base border-gallery-line'
+            lowStockMaterials.length > 0 ? 'bg-amber-100/55 border-amber-200' : 'bg-gallery-base border-gallery-line'
           }`}>
-            <AlertTriangle size={18} className={lowStockMaterials.length > 0 ? 'text-red-700' : 'text-gallery-dark'} />
+            <AlertTriangle size={18} className={lowStockMaterials.length > 0 ? 'text-amber-700' : 'text-gallery-dark'} />
           </div>
         </div>
 
-        {/* Widget 3: Expiring Warning */}
+        {/* Widget 4: Expired Warning */}
         <div className={`border-[0.5px] p-6 flex justify-between items-center relative duration-300 ${
-          expiringMaterials.length > 0 
+          expiredMaterials.length > 0 
+            ? 'bg-red-50/20 border-red-200 hover:border-red-400' 
+            : 'bg-gallery-split border-gallery-line hover:border-gallery-dark'
+        }`}>
+          <div className="space-y-1">
+            <span className="text-[9px] uppercase tracking-[0.25em] text-gallery-muted font-bold block">
+              BAHAN KEDALUWARSA
+            </span>
+            <div className={`text-3xl font-serif font-bold mt-1.5 ${expiredMaterials.length > 0 ? 'text-red-700' : 'text-gallery-dark'}`}>
+              {expiredMaterials.length}
+            </div>
+            <span className="text-[10px] text-gallery-muted font-semibold block">
+              Lewat tanggal kedaluwarsa
+            </span>
+          </div>
+          <div className={`w-12 h-12 flex items-center justify-center border-[0.5px] ${
+            expiredMaterials.length > 0 ? 'bg-red-100/55 border-red-200' : 'bg-gallery-base border-gallery-line'
+          }`}>
+            <Calendar size={18} className={expiredMaterials.length > 0 ? 'text-red-700' : 'text-gallery-dark'} />
+          </div>
+        </div>
+
+        {/* Widget 5: Almost Expired Warning */}
+        <div className={`border-[0.5px] p-6 flex justify-between items-center relative duration-300 ${
+          almostExpiringMaterials.length > 0 
             ? 'bg-amber-50/20 border-amber-200 hover:border-amber-400' 
             : 'bg-gallery-split border-gallery-line hover:border-gallery-dark'
         }`}>
           <div className="space-y-1">
             <span className="text-[9px] uppercase tracking-[0.25em] text-gallery-muted font-bold block">
-              KEDALUWARSA / DEKAT
+              HAMPIR KEDALUWARSA
             </span>
-            <div className={`text-3xl font-serif font-bold mt-1.5 ${expiringMaterials.length > 0 ? 'text-amber-700' : 'text-gallery-dark'}`}>
-              {expiringMaterials.length}
+            <div className={`text-3xl font-serif font-bold mt-1.5 ${almostExpiringMaterials.length > 0 ? 'text-amber-700' : 'text-gallery-dark'}`}>
+              {almostExpiringMaterials.length}
             </div>
             <span className="text-[10px] text-gallery-muted font-semibold block">
-              Expired dalam waktu &lt; 60 hari
+              Expired dalam waktu &lt;= 30 hari
             </span>
           </div>
           <div className={`w-12 h-12 flex items-center justify-center border-[0.5px] ${
-            expiringMaterials.length > 0 ? 'bg-amber-100/55 border-amber-200' : 'bg-gallery-base border-gallery-line'
+            almostExpiringMaterials.length > 0 ? 'bg-amber-100/55 border-amber-200' : 'bg-gallery-base border-gallery-line'
           }`}>
-            <Calendar size={18} className={expiringMaterials.length > 0 ? 'text-amber-700' : 'text-gallery-dark'} />
+            <Calendar size={18} className={almostExpiringMaterials.length > 0 ? 'text-amber-700' : 'text-gallery-dark'} />
           </div>
         </div>
       </div>
@@ -684,20 +763,9 @@ function MaterialsPage() {
           {/* VIEW MODE TOGGLE AND HEADER */}
           <div className="flex justify-between items-center border-b-[0.5px] border-gallery-line pb-3">
             <span className="text-[10px] uppercase tracking-widest text-gallery-muted font-bold">
-              Menampilkan {materials.length} Bahan Baku
+              Menampilkan {materials.length} dari {totalCount} Bahan Baku
             </span>
             <div className="flex gap-1 border-[0.5px] border-gallery-line bg-gallery-split p-0.5">
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className={`px-3 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                  viewMode === 'table' 
-                    ? 'bg-gallery-dark text-gallery-base' 
-                    : 'text-gallery-muted hover:text-gallery-dark'
-                }`}
-              >
-                Tabel
-              </button>
               <button
                 type="button"
                 onClick={() => setViewMode('grid')}
@@ -708,6 +776,17 @@ function MaterialsPage() {
                 }`}
               >
                 Grid
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`px-3 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  viewMode === 'table' 
+                    ? 'bg-gallery-dark text-gallery-base' 
+                    : 'text-gallery-muted hover:text-gallery-dark'
+                }`}
+              >
+                Tabel
               </button>
             </div>
           </div>
@@ -735,9 +814,11 @@ function MaterialsPage() {
                 </thead>
                 <tbody className="divide-y divide-gallery-line text-xs font-semibold text-gallery-dark">
                   {materials.map((m) => {
-                    const isLowStock = m.stock < (lowStockThresholds[m.type] || 10)
+                    const isOutOfStock = m.stock <= 0
+                    const isLowStock = m.stock > 0 && m.stock < (lowStockThresholds[m.type] || 10)
                     const expDate = m.expiredAt ? new Date(m.expiredAt) : null
                     const isExpired = expDate ? expDate.getTime() < now.getTime() : false
+                    const isAlmostExpired = expDate ? (expDate.getTime() >= now.getTime() && (expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24) <= 30) : false
                     const swatchColor = getColorHex(m.colorPattern)
 
                     return (
@@ -751,7 +832,7 @@ function MaterialsPage() {
                         }}
                         className={`cursor-pointer hover:bg-gallery-base/50 transition-colors ${
                           selectedMaterial?.id === m.id ? 'bg-gallery-base/80' : ''
-                        } ${isLowStock ? 'bg-red-50/5' : ''}`}
+                        } ${isOutOfStock ? 'bg-red-50/10' : isLowStock ? 'bg-amber-50/5' : ''}`}
                       >
                         <td className="py-3 px-2 sm:px-4 text-center">
                           <div className="w-6 h-6 border-[0.5px] border-gallery-line shrink-0 flex items-center justify-center relative overflow-hidden mx-auto" style={{ backgroundColor: swatchColor }}>
@@ -763,7 +844,33 @@ function MaterialsPage() {
                           </div>
                         </td>
                         <td className="py-3 px-2 sm:px-4 font-bold tracking-wide uppercase font-sans text-gallery-dark">{m.sku}</td>
-                        <td className="py-3 px-2 sm:px-4 font-serif text-[13px] break-words max-w-[100px] sm:max-w-[150px] md:max-w-[200px] lg:max-w-[140px] xl:max-w-[220px]">{m.name}</td>
+                        <td className="py-3 px-2 sm:px-4">
+                          <div className="font-serif text-[13px] break-words max-w-[100px] sm:max-w-[150px] md:max-w-[200px] lg:max-w-[140px] xl:max-w-[220px]">
+                            {m.name}
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {isOutOfStock && (
+                              <span className="px-1 py-0.2 bg-red-600 text-white text-[8px] tracking-wide font-bold uppercase">
+                                Habis
+                              </span>
+                            )}
+                            {isLowStock && (
+                              <span className="px-1.5 py-0.2 bg-amber-100 text-amber-700 text-[8px] tracking-wide font-bold uppercase border border-amber-200/50">
+                                Menipis
+                              </span>
+                            )}
+                            {isExpired && (
+                              <span className="px-1.5 py-0.2 bg-red-650 text-white text-[8px] tracking-wide font-bold uppercase" style={{ backgroundColor: '#A33B3B' }}>
+                                Kedaluwarsa
+                              </span>
+                            )}
+                            {isAlmostExpired && (
+                              <span className="px-1.5 py-0.2 bg-amber-500 text-white text-[8px] tracking-wide font-bold uppercase">
+                                Hampir Kedal.
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="hidden sm:table-cell py-3 px-2 sm:px-4">
                           <span className="text-[8px] uppercase font-bold tracking-wider px-1.5 py-0.5 bg-gallery-base/90 border-[0.5px] border-gallery-line">
                             {m.type}
@@ -773,7 +880,13 @@ function MaterialsPage() {
                         <td className="hidden xl:table-cell py-3 px-2 sm:px-4 text-gallery-muted font-normal">{m.quality}</td>
                         <td className="hidden sm:table-cell py-3 px-2 sm:px-4 text-gallery-muted font-normal uppercase">{m.size}</td>
                         <td className="py-3 px-2 sm:px-4 text-right">
-                          <span className={`font-bold font-sans whitespace-nowrap ${isLowStock ? 'text-red-700 bg-red-100/50 px-1.5 py-0.5' : 'text-gallery-dark'}`}>
+                          <span className={`font-bold font-sans whitespace-nowrap px-1.5 py-0.5 ${
+                            isOutOfStock 
+                              ? 'text-red-700 bg-red-100/50' 
+                              : isLowStock 
+                                ? 'text-amber-700 bg-amber-100/50' 
+                                : 'text-gallery-dark'
+                          }`}>
                             {m.stock} <span className="text-[10px] text-gallery-muted font-semibold uppercase">{m.unit}</span>
                           </span>
                         </td>
@@ -787,9 +900,11 @@ function MaterialsPage() {
             /* RICH GRID LAYOUT */
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {materials.map((m) => {
-                const isLowStock = m.stock < (lowStockThresholds[m.type] || 10)
+                const isOutOfStock = m.stock <= 0
+                const isLowStock = m.stock > 0 && m.stock < (lowStockThresholds[m.type] || 10)
                 const expDate = m.expiredAt ? new Date(m.expiredAt) : null
                 const isExpired = expDate ? expDate.getTime() < now.getTime() : false
+                const isAlmostExpired = expDate ? (expDate.getTime() >= now.getTime() && (expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24) <= 30) : false
 
                 return (
                   <div 
@@ -816,15 +931,25 @@ function MaterialsPage() {
                           <span className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
                             {m.sku}
                           </span>
-                          <div className="flex gap-1.5">
+                          <div className="flex gap-1.5 flex-wrap justify-end max-w-[60%]">
+                            {isOutOfStock && (
+                              <span className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] tracking-wide font-bold uppercase">
+                                Stok Habis
+                              </span>
+                            )}
                             {isLowStock && (
-                              <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-[8px] tracking-wide font-bold uppercase">
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[8px] tracking-wide font-bold uppercase border border-amber-200/50">
                                 Stok Menipis
                               </span>
                             )}
                             {isExpired && (
-                              <span className="px-1.5 py-0.5 bg-red-600 text-white text-[8px] tracking-wide font-bold uppercase">
+                              <span className="px-1.5 py-0.5 bg-red-650 text-white text-[8px] tracking-wide font-bold uppercase" style={{ backgroundColor: '#A33B3B' }}>
                                 Kedaluwarsa
+                              </span>
+                            )}
+                            {isAlmostExpired && (
+                              <span className="px-1.5 py-0.5 bg-amber-500 text-white text-[8px] tracking-wide font-bold uppercase">
+                                Hampir Kedal.
                               </span>
                             )}
                           </div>
@@ -850,7 +975,13 @@ function MaterialsPage() {
                           <div className="text-[8px] uppercase tracking-widest text-gallery-muted font-semibold">
                             JUMLAH STOK
                           </div>
-                          <div className="text-base font-bold text-gallery-dark mt-0.5">
+                          <div className={`text-base font-bold mt-0.5 ${
+                            isOutOfStock 
+                              ? 'text-red-700' 
+                              : isLowStock 
+                                ? 'text-amber-600' 
+                                : 'text-gallery-dark'
+                          }`}>
                             {m.stock} <span className="text-[10px] font-semibold text-gallery-muted uppercase tracking-wider ml-0.5">{m.unit}</span>
                           </div>
                         </div>
@@ -946,6 +1077,42 @@ function MaterialsPage() {
                 <p className="text-xs text-gallery-muted tracking-wider uppercase font-semibold mt-1">
                   {selectedMaterial.type} • {selectedMaterial.category} • {selectedMaterial.quality}
                 </p>
+                {/* Status Badges */}
+                {(() => {
+                  const m = selectedMaterial
+                  const isOutOfStock = m.stock <= 0
+                  const isLowStock = m.stock > 0 && m.stock < (lowStockThresholds[m.type] || 10)
+                  const expDate = m.expiredAt ? new Date(m.expiredAt) : null
+                  const isExpired = expDate ? expDate.getTime() < now.getTime() : false
+                  const isAlmostExpired = expDate ? (expDate.getTime() >= now.getTime() && (expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24) <= 30) : false
+                  
+                  if (!isOutOfStock && !isLowStock && !isExpired && !isAlmostExpired) return null
+                  
+                  return (
+                    <div className="flex gap-1.5 flex-wrap mt-2">
+                      {isOutOfStock && (
+                        <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] tracking-wider font-bold uppercase">
+                          Stok Habis
+                        </span>
+                      )}
+                      {isLowStock && (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[8px] tracking-wider font-bold uppercase border border-amber-200/50">
+                          Stok Menipis
+                        </span>
+                      )}
+                      {isExpired && (
+                        <span className="px-2 py-0.5 bg-red-650 text-white text-[8px] tracking-wider font-bold uppercase" style={{ backgroundColor: '#A33B3B' }}>
+                          Kedaluwarsa
+                        </span>
+                      )}
+                      {isAlmostExpired && (
+                        <span className="px-2 py-0.5 bg-amber-500 text-white text-[8px] tracking-wider font-bold uppercase">
+                          Hampir Kedaluwarsa
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
               <div className="flex gap-2">
                 <button 
@@ -971,6 +1138,15 @@ function MaterialsPage() {
               </div>
             </div>
 
+            {/* Visual Swatch */}
+            <div className="border-[0.5px] border-gallery-line overflow-hidden bg-gallery-base">
+              <MaterialVisual 
+                type={selectedMaterial.type}
+                colorPattern={selectedMaterial.colorPattern}
+                imageUrl={selectedMaterial.imageUrl}
+              />
+            </div>
+
             {/* Spec details grid */}
             <div className="grid grid-cols-2 gap-4 border-[0.5px] border-gallery-line p-4 bg-gallery-base/40">
               <div>
@@ -985,9 +1161,21 @@ function MaterialsPage() {
                 <div className="text-[8px] uppercase tracking-widest text-gallery-muted font-semibold">TANGGAL KEDALUWARSA</div>
                 <div className="text-xs text-gallery-dark font-bold mt-0.5 uppercase">
                   {selectedMaterial.expiredAt ? (
-                    <span className={new Date(selectedMaterial.expiredAt).getTime() < now.getTime() ? 'text-red-600 font-bold' : ''}>
-                      {new Date(selectedMaterial.expiredAt).toLocaleDateString('id-ID')}
-                    </span>
+                    (() => {
+                      const expTime = new Date(selectedMaterial.expiredAt).getTime()
+                      const diffDays = Math.ceil((expTime - now.getTime()) / (1000 * 60 * 60 * 24))
+                      let colorClass = ''
+                      if (diffDays < 0) {
+                        colorClass = 'text-red-650 font-bold'
+                      } else if (diffDays <= 30) {
+                        colorClass = 'text-amber-600 font-bold'
+                      }
+                      return (
+                        <span className={colorClass}>
+                          {new Date(selectedMaterial.expiredAt).toLocaleDateString('id-ID')}
+                        </span>
+                      )
+                    })()
                   ) : (
                     'TIDAK ADA'
                   )}
@@ -1113,21 +1301,19 @@ function MaterialsPage() {
               PAPAN PERINGATAN STOK & KEDALUWARSA
             </h3>
 
-            {/* Alert: Expiring Materials */}
+            {/* Alert: Expired Materials */}
             <div className="space-y-3">
               <h4 className="text-[10px] uppercase tracking-[0.18em] text-red-800 font-bold flex items-center gap-1.5">
                 <Calendar size={12} className="text-red-700" />
-                BAHAN BAKU HAMPIR KEDALUWARSA ({expiringMaterials.length})
+                BAHAN BAKU KEDALUWARSA ({expiredMaterials.length})
               </h4>
-              {expiringMaterials.length === 0 ? (
+              {expiredMaterials.length === 0 ? (
                 <p className="text-xs text-gallery-muted italic bg-gallery-base/40 p-3 border-[0.5px] border-gallery-line">
-                  Semua bahan baku aman, tidak ada yang mendekati kedaluwarsa.
+                  Tidak ada bahan baku yang kedaluwarsa.
                 </p>
               ) : (
-                <div className="space-y-2">
-                  {expiringMaterials.map(m => {
-                    const exp = new Date(m.expiredAt!)
-                    const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {expiredMaterials.map(m => {
                     return (
                       <div 
                         key={m.id}
@@ -1139,10 +1325,8 @@ function MaterialsPage() {
                           <p className="text-[10px] text-gallery-muted uppercase mt-0.5">{m.sku} • {m.category}</p>
                         </div>
                         <div className="text-right">
-                          <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 ${
-                            daysLeft < 0 ? 'bg-red-600 text-white' : 'bg-red-100 text-red-800'
-                          }`}>
-                            {daysLeft < 0 ? 'Kedaluwarsa' : `${daysLeft} hari lagi`}
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 bg-red-600 text-white">
+                            Kedaluwarsa
                           </span>
                         </div>
                       </div>
@@ -1152,9 +1336,79 @@ function MaterialsPage() {
               )}
             </div>
 
+            {/* Alert: Expiring Materials */}
+            <div className="space-y-3 pt-2">
+              <h4 className="text-[10px] uppercase tracking-[0.18em] text-amber-800 font-bold flex items-center gap-1.5">
+                <Calendar size={12} className="text-amber-600" />
+                BAHAN BAKU HAMPIR KEDALUWARSA ({almostExpiringMaterials.length})
+              </h4>
+              {almostExpiringMaterials.length === 0 ? (
+                <p className="text-xs text-gallery-muted italic bg-gallery-base/40 p-3 border-[0.5px] border-gallery-line">
+                  Tidak ada bahan baku yang mendekati kedaluwarsa.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {almostExpiringMaterials.map(m => {
+                    const exp = new Date(m.expiredAt!)
+                    const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                    return (
+                      <div 
+                        key={m.id}
+                        onClick={() => setSelectedMaterial(m)}
+                        className="bg-white border-l-2 border-amber-500 border-[0.5px] border-gallery-line p-3 flex justify-between items-center cursor-pointer hover:border-gallery-dark duration-150"
+                      >
+                        <div>
+                          <h5 className="text-xs font-bold text-gallery-dark">{m.name}</h5>
+                          <p className="text-[10px] text-gallery-muted uppercase mt-0.5">{m.sku} • {m.category}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 bg-amber-100 text-amber-800">
+                            {daysLeft} hari lagi
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Alert: Out of Stock Materials */}
+            <div className="space-y-3 pt-2">
+              <h4 className="text-[10px] uppercase tracking-[0.18em] text-red-800 font-bold flex items-center gap-1.5">
+                <AlertTriangle size={12} className="text-red-700" />
+                PERINGATAN STOK HABIS ({outOfStockMaterials.length})
+              </h4>
+              {outOfStockMaterials.length === 0 ? (
+                <p className="text-xs text-gallery-muted italic bg-gallery-base/40 p-3 border-[0.5px] border-gallery-line">
+                  Tidak ada bahan baku yang habis.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {outOfStockMaterials.map(m => (
+                    <div 
+                      key={m.id}
+                      onClick={() => setSelectedMaterial(m)}
+                      className="bg-white border-l-2 border-red-600 border-[0.5px] border-gallery-line p-3 flex justify-between items-center cursor-pointer hover:border-gallery-dark duration-150"
+                    >
+                      <div>
+                        <h5 className="text-xs font-bold text-gallery-dark">{m.name}</h5>
+                        <p className="text-[10px] text-gallery-muted uppercase mt-0.5">{m.sku} • Batas Minimum: {lowStockThresholds[m.type]} {m.unit}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5">
+                          Habis
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Alert: Low Stock Materials */}
             <div className="space-y-3 pt-2">
-              <h4 className="text-[10px] uppercase tracking-[0.18em] text-gallery-dark font-bold flex items-center gap-1.5">
+              <h4 className="text-[10px] uppercase tracking-[0.18em] text-amber-800 font-bold flex items-center gap-1.5">
                 <AlertTriangle size={12} className="text-amber-600" />
                 PERINGATAN STOK MENIPIS ({lowStockMaterials.length})
               </h4>
@@ -1163,7 +1417,7 @@ function MaterialsPage() {
                   Stok semua bahan baku aman dan mencukupi.
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                   {lowStockMaterials.map(m => (
                     <div 
                       key={m.id}
@@ -1197,11 +1451,19 @@ function MaterialsPage() {
           <DialogTitle>TAMBAH BAHAN BAKU BARU</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleAddSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={handleAddSubmit} className="space-y-3">
+          <ImageUploadInput
+            label="Foto Bahan Baku"
+            existingUrl={newMaterial.imageUrl}
+            file={newMaterialFile}
+            onFileChange={setNewMaterialFile}
+            onClearExisting={() => setNewMaterial({ ...newMaterial, imageUrl: '' })}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Kode SKU / Nomor Unik*
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
+                Kode SKU*
               </label>
               <input 
                 type="text" 
@@ -1212,9 +1474,25 @@ function MaterialsPage() {
                 className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
               />
             </div>
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
+                Nama Bahan Baku*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. Synthetic Nappa Suede"
+                value={newMaterial.name}
+                onChange={(e) => setNewMaterial({...newMaterial, name: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
                   Jenis Bahan*
                 </label>
                 <button
@@ -1225,23 +1503,23 @@ function MaterialsPage() {
                   }}
                   className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
                 >
-                  {isAddingTypeInline ? 'Batal' : '+ Tambah Baru'}
+                  {isAddingTypeInline ? 'Batal' : '+ Tambah'}
                 </button>
               </div>
               {isAddingTypeInline ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     required
-                    placeholder="Nama Tipe Baru"
+                    placeholder="Tipe"
                     value={inlineTypeValue}
                     onChange={(e) => setInlineTypeValue(e.target.value)}
-                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
                   />
                   <button
                     type="button"
                     onClick={handleSaveTypeInline}
-                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                    className="w-full bg-gallery-dark text-gallery-base py-1 text-[9px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans text-center"
                   >
                     Simpan
                   </button>
@@ -1270,27 +1548,11 @@ function MaterialsPage() {
                 </select>
               )}
             </div>
-          </div>
 
-          <div className="space-y-1">
-            <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-              Nama Bahan Baku*
-            </label>
-            <input 
-              type="text" 
-              required 
-              placeholder="e.g. Synthetic Nappa Suede"
-              value={newMaterial.name}
-              onChange={(e) => setNewMaterial({...newMaterial, name: e.target.value})}
-              className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
-                  Kategori / Kelompok*
+                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
+                  Kategori*
                 </label>
                 <button
                   type="button"
@@ -1300,23 +1562,23 @@ function MaterialsPage() {
                   }}
                   className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
                 >
-                  {isAddingCategoryInline ? 'Batal' : '+ Tambah Baru'}
+                  {isAddingCategoryInline ? 'Batal' : '+ Tambah'}
                 </button>
               </div>
               {isAddingCategoryInline ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     required
-                    placeholder="Nama Kategori Baru"
+                    placeholder="Kategori"
                     value={inlineCategoryValue}
                     onChange={(e) => setInlineCategoryValue(e.target.value)}
-                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
                   />
                   <button
                     type="button"
                     onClick={handleSaveCategoryInline}
-                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                    className="w-full bg-gallery-dark text-gallery-base py-1 text-[9px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans text-center"
                   >
                     Simpan
                   </button>
@@ -1334,11 +1596,11 @@ function MaterialsPage() {
                 </select>
               )}
             </div>
-            
+
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
-                  Kualitas Bahan*
+                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
+                  Kualitas*
                 </label>
                 <button
                   type="button"
@@ -1348,23 +1610,23 @@ function MaterialsPage() {
                   }}
                   className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
                 >
-                  {isAddingQualityInline ? 'Batal' : '+ Tambah Baru'}
+                  {isAddingQualityInline ? 'Batal' : '+ Tambah'}
                 </button>
               </div>
               {isAddingQualityInline ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     required
-                    placeholder="Nama Kualitas Baru"
+                    placeholder="Kualitas"
                     value={inlineQualityValue}
                     onChange={(e) => setInlineQualityValue(e.target.value)}
-                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
                   />
                   <button
                     type="button"
                     onClick={handleSaveQualityInline}
-                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                    className="w-full bg-gallery-dark text-gallery-base py-1 text-[9px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans text-center"
                   >
                     Simpan
                   </button>
@@ -1384,23 +1646,39 @@ function MaterialsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
+                Warna / Motif*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. Python Gold, Matte Slate Black"
+                value={newMaterial.colorPattern}
+                onChange={(e) => setNewMaterial({...newMaterial, colorPattern: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
                 Ukuran / Detail Fisik*
               </label>
               <input 
                 type="text" 
                 required 
-                placeholder="e.g. 5x5 ft, 1m, 120ml"
+                placeholder="e.g. Gulungan, Botol, Lembar, Pcs"
                 value={newMaterial.size}
                 onChange={(e) => setNewMaterial({...newMaterial, size: e.target.value})}
                 className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Jumlah Stok Awal*
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
+                Stok Awal*
               </label>
               <input 
                 type="number" 
@@ -1413,7 +1691,7 @@ function MaterialsPage() {
             </div>
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
                   Satuan*
                 </label>
                 <button
@@ -1428,19 +1706,19 @@ function MaterialsPage() {
                 </button>
               </div>
               {isAddingUnitInline ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     required
                     placeholder="Pcs"
                     value={inlineUnitValue}
                     onChange={(e) => setInlineUnitValue(e.target.value)}
-                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
                   />
                   <button
                     type="button"
                     onClick={handleSaveUnitInline}
-                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                    className="w-full bg-gallery-dark text-gallery-base py-1 text-[9px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans text-center"
                   >
                     Simpan
                   </button>
@@ -1458,38 +1736,9 @@ function MaterialsPage() {
                 </select>
               )}
             </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-              Pilihan Warna / Motif*
-            </label>
-            <input 
-              type="text" 
-              required 
-              placeholder="e.g. Python Gold, Matte Slate Black"
-              value={newMaterial.colorPattern}
-              onChange={(e) => setNewMaterial({...newMaterial, colorPattern: e.target.value})}
-              className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                URL Foto
-              </label>
-              <input 
-                type="text" 
-                placeholder="e.g. https://... (Optional)"
-                value={newMaterial.imageUrl}
-                onChange={(e) => setNewMaterial({...newMaterial, imageUrl: e.target.value})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Tanggal Kedaluwarsa (Jika Ada)
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
+                Tgl Kedaluwarsa
               </label>
               <input 
                 type="date" 
@@ -1518,11 +1767,19 @@ function MaterialsPage() {
           <DialogTitle>EDIT INFORMASI BAHAN BAKU</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleEditSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={handleEditSubmit} className="space-y-3">
+          <ImageUploadInput
+            label="Foto Bahan Baku"
+            existingUrl={editMaterialData.imageUrl}
+            file={editMaterialFile}
+            onFileChange={setEditMaterialFile}
+            onClearExisting={() => setEditMaterialData({ ...editMaterialData, imageUrl: '' })}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Kode SKU / Nomor Unik*
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
+                Kode SKU*
               </label>
               <input 
                 type="text" 
@@ -1533,9 +1790,25 @@ function MaterialsPage() {
                 className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
               />
             </div>
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
+                Nama Bahan Baku*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. Synthetic Nappa Suede"
+                value={editMaterialData.name}
+                onChange={(e) => setEditMaterialData({...editMaterialData, name: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
                   Jenis Bahan*
                 </label>
                 <button
@@ -1546,23 +1819,23 @@ function MaterialsPage() {
                   }}
                   className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
                 >
-                  {isAddingTypeInline ? 'Batal' : '+ Tambah Baru'}
+                  {isAddingTypeInline ? 'Batal' : '+ Tambah'}
                 </button>
               </div>
               {isAddingTypeInline ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     required
-                    placeholder="Nama Tipe Baru"
+                    placeholder="Tipe"
                     value={inlineTypeValue}
                     onChange={(e) => setInlineTypeValue(e.target.value)}
-                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
                   />
                   <button
                     type="button"
                     onClick={handleSaveTypeInline}
-                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                    className="w-full bg-gallery-dark text-gallery-base py-1 text-[9px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans text-center"
                   >
                     Simpan
                   </button>
@@ -1591,27 +1864,11 @@ function MaterialsPage() {
                 </select>
               )}
             </div>
-          </div>
 
-          <div className="space-y-1">
-            <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-              Nama Bahan Baku*
-            </label>
-            <input 
-              type="text" 
-              required 
-              placeholder="e.g. Synthetic Nappa Suede"
-              value={editMaterialData.name}
-              onChange={(e) => setEditMaterialData({...editMaterialData, name: e.target.value})}
-              className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
-                  Kategori / Kelompok*
+                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
+                  Kategori*
                 </label>
                 <button
                   type="button"
@@ -1621,23 +1878,23 @@ function MaterialsPage() {
                   }}
                   className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
                 >
-                  {isAddingCategoryInline ? 'Batal' : '+ Tambah Baru'}
+                  {isAddingCategoryInline ? 'Batal' : '+ Tambah'}
                 </button>
               </div>
               {isAddingCategoryInline ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     required
-                    placeholder="Nama Kategori Baru"
+                    placeholder="Kategori"
                     value={inlineCategoryValue}
                     onChange={(e) => setInlineCategoryValue(e.target.value)}
-                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
                   />
                   <button
                     type="button"
                     onClick={handleSaveCategoryInline}
-                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                    className="w-full bg-gallery-dark text-gallery-base py-1 text-[9px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans text-center"
                   >
                     Simpan
                   </button>
@@ -1655,11 +1912,11 @@ function MaterialsPage() {
                 </select>
               )}
             </div>
-            
+
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
-                  Kualitas Bahan*
+                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
+                  Kualitas*
                 </label>
                 <button
                   type="button"
@@ -1669,23 +1926,23 @@ function MaterialsPage() {
                   }}
                   className="text-[9px] text-gallery-dark font-bold hover:underline cursor-pointer font-sans"
                 >
-                  {isAddingQualityInline ? 'Batal' : '+ Tambah Baru'}
+                  {isAddingQualityInline ? 'Batal' : '+ Tambah'}
                 </button>
               </div>
               {isAddingQualityInline ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     required
-                    placeholder="Nama Kualitas Baru"
+                    placeholder="Kualitas"
                     value={inlineQualityValue}
                     onChange={(e) => setInlineQualityValue(e.target.value)}
-                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
                   />
                   <button
                     type="button"
                     onClick={handleSaveQualityInline}
-                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                    className="w-full bg-gallery-dark text-gallery-base py-1 text-[9px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans text-center"
                   >
                     Simpan
                   </button>
@@ -1705,23 +1962,39 @@ function MaterialsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
+                Warna / Motif*
+              </label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g. Python Gold, Matte Slate Black"
+                value={editMaterialData.colorPattern}
+                onChange={(e) => setEditMaterialData({...editMaterialData, colorPattern: e.target.value})}
+                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
                 Ukuran / Detail Fisik*
               </label>
               <input 
                 type="text" 
                 required 
-                placeholder="e.g. 5x5 ft, 1m, 120ml"
+                placeholder="e.g. Gulungan, Botol, Lembar, Pcs"
                 value={editMaterialData.size}
                 onChange={(e) => setEditMaterialData({...editMaterialData, size: e.target.value})}
                 className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
               />
             </div>
-            <div className="space-y-1">
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1 sm:col-span-2">
               <div className="flex justify-between items-center">
-                <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold block">
+                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
                   Satuan*
                 </label>
                 <button
@@ -1736,19 +2009,19 @@ function MaterialsPage() {
                 </button>
               </div>
               {isAddingUnitInline ? (
-                <div className="flex gap-1">
+                <div className="flex flex-col gap-1">
                   <input
                     type="text"
                     required
                     placeholder="Pcs"
                     value={inlineUnitValue}
                     onChange={(e) => setInlineUnitValue(e.target.value)}
-                    className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
+                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark font-sans font-semibold"
                   />
                   <button
                     type="button"
                     onClick={handleSaveUnitInline}
-                    className="bg-gallery-dark text-gallery-base px-2 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans"
+                    className="w-full bg-gallery-dark text-gallery-base py-1 text-[9px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer font-sans text-center"
                   >
                     Simpan
                   </button>
@@ -1766,38 +2039,9 @@ function MaterialsPage() {
                 </select>
               )}
             </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-              Pilihan Warna / Motif*
-            </label>
-            <input 
-              type="text" 
-              required 
-              placeholder="e.g. Python Gold, Matte Slate Black"
-              value={editMaterialData.colorPattern}
-              onChange={(e) => setEditMaterialData({...editMaterialData, colorPattern: e.target.value})}
-              className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                URL Foto
-              </label>
-              <input 
-                type="text" 
-                placeholder="e.g. https://... (Optional)"
-                value={editMaterialData.imageUrl}
-                onChange={(e) => setEditMaterialData({...editMaterialData, imageUrl: e.target.value})}
-                className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus:outline-none focus:border-gallery-dark"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-gallery-muted font-bold">
-                Tanggal Kedaluwarsa (Jika Ada)
+              <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold">
+                Tgl Kedaluwarsa
               </label>
               <input 
                 type="date" 

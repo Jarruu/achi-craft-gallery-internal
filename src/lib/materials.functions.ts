@@ -77,7 +77,21 @@ export const getMaterials = createServerFn({ method: 'GET' })
 
     const items = await prisma.material.findMany(findOptions)
 
-    return { items, totalCount }
+    // Fetch all filtered materials (without pagination) to compute accurate warning lists & counts
+    const allMaterials = await prisma.material.findMany({
+      where,
+      orderBy: [
+        { createdAt: 'desc' }
+      ],
+      include: {
+        stockLogs: {
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    })
+
+    return { items, totalCount, allMaterials }
   })
 
 export const createMaterial = createServerFn({ method: 'POST' })
