@@ -8,17 +8,18 @@
   "scripts": {
     "dev": "vite dev --port 3000",
     "build": "vite build",
+    "postinstall": "prisma generate",
     "preview": "vite preview",
     "test": "vitest run",
     "post-cta-init": "pnpm dlx create-db@latest --user-agent tanstack/tsrouter",
-    "db:generate": "dotenv -e .env.local -- prisma generate",
-    "db:push": "dotenv -e .env.local -- prisma db push",
-    "db:push:reset": "dotenv -e .env.local -- prisma db push --force-reset",
-    "db:migrate": "dotenv -e .env.local -- prisma migrate dev",
-    "db:studio": "dotenv -e .env.local -- prisma studio",
-    "db:seed": "dotenv -e .env.local -- prisma db seed",
-    "db:seed:user": "dotenv -e .env.local -- tsx prisma/seed-user.ts",
-    "db:seed:inventory": "dotenv -e .env.local -- tsx prisma/seed-inventory.ts"
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:push:reset": "prisma db push --force-reset",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:seed": "prisma db seed",
+    "db:seed:user": "tsx prisma/seed-user.ts",
+    "db:seed:inventory": "tsx prisma/seed-inventory.ts"
   },
   "dependencies": {
     "@faker-js/faker": "^10.3.0",
