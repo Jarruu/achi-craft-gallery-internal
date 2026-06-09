@@ -8,6 +8,12 @@ import TanstackQueryProvider, {
   getContext,
 } from './integrations/tanstack-query/root-provider'
 
+import {
+  DefaultPendingComponent,
+  DefaultErrorComponent,
+  DefaultNotFoundComponent
+} from './components/RouterFallbacks'
+
 export function getRouter() {
   const context = getContext()
 
@@ -17,6 +23,9 @@ export function getRouter() {
     scrollRestoration: true,
     defaultPreload: 'intent',
     defaultPreloadStaleTime: 0,
+    defaultPendingComponent: DefaultPendingComponent,
+    defaultErrorComponent: DefaultErrorComponent,
+    defaultNotFoundComponent: DefaultNotFoundComponent,
   })
 
   setupRouterSsrQueryIntegration({ router, queryClient: context.queryClient })

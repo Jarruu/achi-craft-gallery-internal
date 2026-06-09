@@ -18,14 +18,14 @@ function DashboardPage() {
       {/* HEADER SECTION (Magazine Header Style) */}
       <div className="border-b-[0.5px] border-gallery-line pb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.25em] text-gallery-muted font-bold">
+          <div className="text-[11px] uppercase tracking-[0.25em] text-gallery-muted font-bold">
             DASHBOARD
           </div>
           <h2 className="text-4xl font-serif tracking-tight text-gallery-dark uppercase mt-1">
             RINGKASAN AKTIVITAS & INVENTARIS
           </h2>
         </div>
-        <div className="text-right text-[11px] font-semibold text-gallery-muted tracking-wider uppercase border-[0.5px] border-gallery-line bg-gallery-split px-4 py-2 select-none">
+        <div className="text-right text-xs font-semibold text-gallery-muted tracking-wider uppercase border-[0.5px] border-gallery-line bg-gallery-split px-4 py-2 select-none">
           {new Date().toLocaleDateString('id-ID', { 
             weekday: 'long', 
             day: 'numeric', 
@@ -36,19 +36,19 @@ function DashboardPage() {
       </div>
 
       {/* KPI METRIC CARDS (Geometric Division Layout) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 border-[0.5px] border-gallery-line bg-gallery-split divide-y md:divide-y-0 md:divide-x divide-gallery-line">
+      <div className="grid grid-cols-1 md:grid-cols-3 border-[0.5px] border-gallery-line bg-gallery-split divide-y md:divide-y-0 md:divide-x divide-gallery-line" role="region" aria-label="Informasi Utama">
         {/* Metric 1 */}
         <div className="p-8 flex flex-col justify-between min-h-[160px]">
           <div>
             <div className="flex items-center justify-between text-gallery-muted mb-4">
-              <span className="text-[9px] font-bold uppercase tracking-wider">TOTAL BAHAN BAKU</span>
-              <Layers size={16} />
+              <span className="text-[11px] font-bold uppercase tracking-wider">TOTAL BAHAN BAKU</span>
+              <Layers size={16} aria-hidden="true" />
             </div>
             <div className="text-4xl font-serif text-gallery-dark">
               {stats.totalMaterials} <span className="text-xs font-sans font-semibold text-gallery-muted uppercase">Item</span>
             </div>
           </div>
-          <p className="text-[9px] text-gallery-muted tracking-wide mt-6 font-medium uppercase">
+          <p className="text-[10px] text-gallery-muted tracking-wide mt-6 font-semibold uppercase">
             Terbagi dalam {Object.keys(stats.typeStats).length} tipe kategori bahan
           </p>
         </div>
@@ -57,14 +57,14 @@ function DashboardPage() {
         <div className="p-8 flex flex-col justify-between min-h-[160px]">
           <div>
             <div className="flex items-center justify-between text-gallery-muted mb-4">
-              <span className="text-[9px] font-bold uppercase tracking-wider">DESAIN PRODUK (BOM)</span>
-              <Cpu size={16} />
+              <span className="text-[11px] font-bold uppercase tracking-wider">DESAIN PRODUK (BOM)</span>
+              <Cpu size={16} aria-hidden="true" />
             </div>
             <div className="text-4xl font-serif text-gallery-dark">
               {stats.totalProducts} <span className="text-xs font-sans font-semibold text-gallery-muted uppercase">Formula</span>
             </div>
           </div>
-          <p className="text-[9px] text-gallery-muted tracking-wide mt-6 font-medium uppercase">
+          <p className="text-[10px] text-gallery-muted tracking-wide mt-6 font-semibold uppercase">
             Kombinasi formula Bill of Materials aktif
           </p>
         </div>
@@ -73,30 +73,30 @@ function DashboardPage() {
         <div className="p-8 flex flex-col justify-between min-h-[160px] relative">
           <div>
             <div className="flex items-center justify-between text-gallery-muted mb-3">
-              <span className="text-[9px] font-bold uppercase tracking-wider">PERINGATAN INVENTARIS</span>
-              <AlertTriangle className={(stats.outOfStockCount + stats.expiredCount) > 0 ? "text-red-750 animate-pulse" : (stats.lowStockCount + stats.almostExpiredCount) > 0 ? "text-amber-600" : "text-gallery-muted"} size={16} />
+              <span className="text-[11px] font-bold uppercase tracking-wider">PERINGATAN INVENTARIS</span>
+              <AlertTriangle className={(stats.outOfStockCount + stats.expiredCount) > 0 ? "text-red-700 animate-pulse" : (stats.lowStockCount + stats.almostExpiredCount) > 0 ? "text-amber-600" : "text-gallery-muted"} size={16} aria-hidden="true" />
             </div>
             <div className="text-4xl font-serif text-gallery-dark">
               {stats.outOfStockCount + stats.lowStockCount + stats.expiredCount + stats.almostExpiredCount}{" "}
               <span className="text-xs font-sans font-semibold text-gallery-muted uppercase">Bahan</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[9px] text-gallery-muted font-bold tracking-wide mt-4 uppercase">
-            <div className="flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${stats.outOfStockCount > 0 ? 'bg-red-600' : 'bg-gallery-muted/30'}`} />
-              <span>Stok Habis: <span className={stats.outOfStockCount > 0 ? "text-red-700" : ""}>{stats.outOfStockCount}</span></span>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-gallery-muted font-bold tracking-wide mt-4 uppercase">
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${stats.outOfStockCount > 0 ? 'bg-red-600' : 'bg-gallery-muted/30'}`} aria-hidden="true" />
+              <span>Habis: <span className={stats.outOfStockCount > 0 ? "text-red-700 font-bold" : ""}>{stats.outOfStockCount}</span></span>
             </div>
-            <div className="flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${stats.lowStockCount > 0 ? 'bg-amber-500' : 'bg-gallery-muted/30'}`} />
-              <span>Stok Menipis: <span className={stats.lowStockCount > 0 ? "text-amber-650" : ""}>{stats.lowStockCount}</span></span>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${stats.lowStockCount > 0 ? 'bg-amber-500' : 'bg-gallery-muted/30'}`} aria-hidden="true" />
+              <span>Menipis: <span className={stats.lowStockCount > 0 ? "text-amber-600 font-bold" : ""}>{stats.lowStockCount}</span></span>
             </div>
-            <div className="flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${stats.expiredCount > 0 ? 'bg-red-600' : 'bg-gallery-muted/30'}`} />
-              <span>Expired: <span className={stats.expiredCount > 0 ? "text-red-700" : ""}>{stats.expiredCount}</span></span>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${stats.expiredCount > 0 ? 'bg-red-600' : 'bg-gallery-muted/30'}`} aria-hidden="true" />
+              <span>Expired: <span className={stats.expiredCount > 0 ? "text-red-700 font-bold" : ""}>{stats.expiredCount}</span></span>
             </div>
-            <div className="flex items-center gap-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${stats.almostExpiredCount > 0 ? 'bg-amber-500' : 'bg-gallery-muted/30'}`} />
-              <span>Hampir Expired: <span className={stats.almostExpiredCount > 0 ? "text-amber-650" : ""}>{stats.almostExpiredCount}</span></span>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${stats.almostExpiredCount > 0 ? 'bg-amber-500' : 'bg-gallery-muted/30'}`} aria-hidden="true" />
+              <span>Hampir Exp: <span className={stats.almostExpiredCount > 0 ? "text-amber-600 font-bold" : ""}>{stats.almostExpiredCount}</span></span>
             </div>
           </div>
         </div>
@@ -112,12 +112,12 @@ function DashboardPage() {
               <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
                 ESTIMASI KAPASITAS PRODUKSI MAKSIMAL (BOM)
               </h3>
-              <Link to="/products" className="text-[9px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors">
-                KELOLA <ArrowRight size={10} />
+              <Link to="/products" className="text-[10px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors focus-ring">
+                KELOLA <ArrowRight size={10} aria-hidden="true" />
               </Link>
             </div>
             
-            <p className="text-[10px] text-gallery-muted uppercase tracking-wider font-semibold mb-4 leading-relaxed">
+            <p className="text-[11px] text-gallery-muted uppercase tracking-wider font-bold mb-4 leading-relaxed">
               Batas atas kuantitas produk yang dapat diproduksi secara real-time berdasarkan sisa bahan baku saat ini.
             </p>
 
@@ -135,7 +135,7 @@ function DashboardPage() {
                         {product.imageUrl ? (
                           <img 
                             src={product.imageUrl} 
-                            alt={product.name} 
+                            alt={`Foto ${product.name}`} 
                             className="w-12 h-12 object-cover border-[0.5px] border-gallery-line shrink-0" 
                           />
                         ) : (
@@ -147,7 +147,7 @@ function DashboardPage() {
                           <h4 className="text-sm font-serif font-bold uppercase text-gallery-dark tracking-wide">
                             {product.name}
                           </h4>
-                          <p className="text-[9px] text-gallery-muted font-bold uppercase mt-0.5">
+                          <p className="text-[10px] text-gallery-muted font-bold uppercase mt-0.5">
                             {product.materialsCount} BAHAN BAKU DIKONSUMSI
                           </p>
                         </div>
@@ -165,7 +165,7 @@ function DashboardPage() {
                         </span>
 
                         {hasDeficits && (
-                          <span className="text-[8px] text-red-700 mt-1 uppercase font-bold tracking-wide leading-tight max-w-[200px] sm:text-right">
+                          <span className="text-[10px] text-red-700 mt-1 uppercase font-bold tracking-wide leading-tight max-w-[200px] sm:text-right">
                             Kekurangan: {product.materialDeficits.map(d => `${d.sku} (${d.required - d.available} ${d.unit})`).join(', ')}
                           </span>
                         )}
@@ -190,7 +190,7 @@ function DashboardPage() {
                 return (
                   <div key={type} className="bg-gallery-base p-4 border-[0.5px] border-gallery-line flex flex-col justify-between min-h-[90px]">
                     <div>
-                      <div className="text-[8px] font-bold uppercase tracking-widest text-gallery-muted">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-gallery-muted">
                         Kategori
                       </div>
                       <div className="text-[11px] font-serif font-bold tracking-wider text-gallery-dark uppercase mt-0.5">
@@ -198,11 +198,11 @@ function DashboardPage() {
                       </div>
                     </div>
                     <div className="mt-4 flex items-baseline justify-between border-t border-gallery-line/50 pt-2">
-                      <span className="text-[9px] text-gallery-muted font-semibold uppercase">
+                      <span className="text-[10px] text-gallery-muted font-bold uppercase">
                         {data.count} SKU
                       </span>
                       <span className="text-xs font-bold text-gallery-dark">
-                        {data.stock.toLocaleString('id-ID')} <span className="text-[8px] text-gallery-muted font-semibold uppercase">Unit</span>
+                        {data.stock.toLocaleString('id-ID')} <span className="text-[9px] text-gallery-muted font-semibold uppercase">Unit</span>
                       </span>
                     </div>
                   </div>
@@ -221,8 +221,8 @@ function DashboardPage() {
                 <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
                   PERINGATAN BAHAN (PERLU PERHATIAN)
                 </h3>
-                <Link to="/materials" className="text-[9px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors">
-                  LIHAT <ArrowRight size={10} />
+                <Link to="/materials" className="text-[10px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors focus-ring">
+                  LIHAT <ArrowRight size={10} aria-hidden="true" />
                 </Link>
               </div>
   
@@ -239,15 +239,20 @@ function DashboardPage() {
                         key={material.id}
                         to="/materials"
                         search={{ search: material.sku }}
-                        className="block bg-gallery-base hover:bg-gallery-base/80 border-[0.5px] border-gallery-line p-3 transition-all no-underline group"
+                        className="block bg-gallery-base hover:bg-gallery-base/80 border-[0.5px] border-gallery-line p-3 transition-all no-underline group focus-ring"
+                        aria-label={`Bahan ${material.name}, SKU ${material.sku}. Status: ${
+                          material.warningType === 'EXPIRED' ? 'Kedaluwarsa' :
+                          material.warningType === 'OUT_OF_STOCK' ? 'Stok Habis' :
+                          material.warningType === 'ALMOST_EXPIRED' ? 'Hampir Kedaluwarsa' : 'Stok Menipis'
+                        }`}
                       >
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <span className="text-[8px] font-bold tracking-wider uppercase bg-gallery-dark text-gallery-base px-1.5 py-0.5">
+                              <span className="text-[10px] font-bold tracking-wider uppercase bg-gallery-dark text-gallery-base px-1.5 py-0.5">
                                 {material.sku}
                               </span>
-                              <span className="text-[8px] font-bold tracking-wider uppercase text-gallery-muted bg-gallery-split border-[0.5px] border-gallery-line px-1 py-0.25">
+                              <span className="text-[10px] font-bold tracking-wider uppercase text-gallery-muted bg-gallery-split border-[0.5px] border-gallery-line px-1 py-0.5">
                                 {material.type}
                               </span>
                             </div>
@@ -259,7 +264,7 @@ function DashboardPage() {
                             <div className={`text-xs font-bold ${isRed ? 'text-red-700' : 'text-amber-700'}`}>
                               {material.warningType === 'LOW_STOCK' ? `${material.stock} ${material.unit}` : material.message}
                             </div>
-                            <span className={`text-[7px] font-bold px-1.5 py-0.25 tracking-widest uppercase mt-1 inline-block border ${
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 tracking-widest uppercase mt-1 inline-block border ${
                               isRed 
                                 ? 'bg-red-100 text-red-800 border-red-200/50' 
                                 : 'bg-amber-100 text-amber-800 border-amber-200/50'
@@ -283,8 +288,8 @@ function DashboardPage() {
               <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
                 LOG AKTIVITAS (7 HARI: {stats.logsLast7Days} LOG)
               </h3>
-              <Link to="/logs" className="text-[9px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors">
-                RIWAYAT <ArrowRight size={10} />
+              <Link to="/logs" className="text-[10px] font-bold uppercase tracking-widest text-gallery-muted hover:text-gallery-dark flex items-center gap-1 transition-colors focus-ring">
+                RIWAYAT <ArrowRight size={10} aria-hidden="true" />
               </Link>
             </div>
 
@@ -304,9 +309,9 @@ function DashboardPage() {
                   const isPositive = log.quantity > 0
                   return (
                     <div key={log.id} className="text-xs border-b border-gallery-line/50 pb-3 last:border-0 last:pb-0">
-                      <div className="flex items-center justify-between text-gallery-muted font-bold text-[8px] uppercase tracking-wide">
+                      <div className="flex items-center justify-between text-gallery-muted font-bold text-[10px] uppercase tracking-wide">
                         <span>{formattedDate}</span>
-                        <span className={`px-1 py-0.25 font-bold ${
+                        <span className={`px-1.5 py-0.5 font-bold ${
                           log.type === 'INCOMING' ? 'bg-green-50 text-green-800' :
                           log.type === 'OUTGOING' ? 'bg-red-50 text-red-800' : 'bg-yellow-50 text-yellow-800'
                         }`}>
@@ -314,16 +319,16 @@ function DashboardPage() {
                         </span>
                       </div>
                       <div className="mt-1.5 flex justify-between items-baseline gap-2">
-                        <span className="font-serif text-gallery-dark uppercase font-bold text-[12px] truncate">
+                        <span className="font-serif text-gallery-dark uppercase font-bold text-xs truncate">
                           {log.material.name}
                         </span>
                         <span className={`font-bold shrink-0 ${isPositive ? 'text-green-700' : 'text-red-700'}`}>
                           {isPositive ? `+${log.quantity}` : log.quantity}{' '}
-                          <span className="text-[8px] text-gallery-muted font-semibold uppercase">{log.material.unit}</span>
+                          <span className="text-[10px] text-gallery-muted font-semibold uppercase">{log.material.unit}</span>
                         </span>
                       </div>
                       {log.notes && (
-                        <div className="mt-1 text-[9.5px] text-gallery-muted italic leading-relaxed">
+                        <div className="mt-1 text-[11px] text-gallery-muted italic leading-relaxed">
                           "{log.notes}"
                         </div>
                       )}

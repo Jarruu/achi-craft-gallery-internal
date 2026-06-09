@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
 import { loginUser } from '../lib/auth.functions'
-import { Mail, Lock, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { Mail, Lock, ArrowRight, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import achiLogo from '../assets/achi-logo-1.jpg'
 import artGallery60 from '../assets/art-gallery-60-1.png'
@@ -49,11 +49,11 @@ function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 bg-gallery-base">
+    <main className="min-h-screen grid grid-cols-1 lg:grid-cols-12 bg-gallery-base">
       
       {/* LEFT PANEL: Branding & Editorial Showcase (7/12) */}
       <div className="hidden lg:flex lg:col-span-7 bg-[#2E2D31] text-[#F3F1F1] p-16 flex-col justify-between relative overflow-hidden">
-        {/* Background Image between bg and content (z-0, opacity 1) */}
+        {/* Background Image between bg and content */}
         <img 
           src={artGallery60} 
           alt="" 
@@ -69,12 +69,12 @@ function LoginPage() {
         <div className="z-10 flex items-center gap-3">
           <img 
             src={achiLogo} 
-            alt="Achi Logo" 
+            alt="Logo Achi" 
             className="w-10 h-10 object-contain" 
           />
           <div>
             <div className="text-xs font-serif tracking-widest text-[#F3F1F1] mt-0.5 uppercase">
-              ACHI CRAFT GALERY
+              ACHI CRAFT GALLERY
             </div>
           </div>
         </div>
@@ -96,12 +96,12 @@ function LoginPage() {
             <div className="lg:hidden flex items-center gap-3 mb-6">
               <img 
                 src={achiLogo} 
-                alt="Achi Logo" 
+                alt="Logo Achi" 
                 className="w-10 h-10 object-contain" 
               />
               <div>
                 <div className="text-xs font-serif tracking-widest text-gallery-dark uppercase mt-0.5">
-                  ACHI CRAFT GALERY
+                  ACHI CRAFT GALLERY
                 </div>
               </div>
             </div>
@@ -112,9 +112,13 @@ function LoginPage() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" aria-busy={isLoading}>
             {error && (
-              <div className="bg-red-50/50 border-[0.5px] border-red-200 p-4 text-xs font-semibold text-red-700 flex items-start gap-2.5 duration-200 rise-in">
+              <div 
+                role="alert"
+                aria-live="polite"
+                className="bg-red-50/50 border-[0.5px] border-red-200 p-4 text-xs font-semibold text-red-700 flex items-start gap-2.5 duration-200 rise-in animate-in fade-in"
+              >
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
@@ -122,44 +126,56 @@ function LoginPage() {
 
             <div className="space-y-4">
               {/* Email Field */}
-              <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
+              <div className="space-y-1.5">
+                <label 
+                  htmlFor="login-email"
+                  className="text-[11px] uppercase tracking-[0.15em] text-gallery-muted font-bold block"
+                >
                   Alamat Email*
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gallery-muted" size={14} />
                   <input
+                    id="login-email"
                     type="email"
                     required
-                    placeholder="e.g. adminacg@gmail.com"
+                    disabled={isLoading}
+                    placeholder="nama@contoh.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-gallery-split/30 border-[0.5px] border-gallery-line focus:border-gallery-dark pl-9 pr-4 py-2.5 text-xs text-gallery-dark focus:outline-none font-sans placeholder-gallery-muted/50 transition-colors"
+                    className="w-full bg-gallery-split/30 border-[0.5px] border-gallery-line pl-9 pr-4 py-2.5 text-xs text-gallery-dark font-sans placeholder-gallery-muted/50 transition-colors focus-ring disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
 
               {/* Password Field */}
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <label className="text-[9px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
+                  <label 
+                    htmlFor="login-password"
+                    className="text-[11px] uppercase tracking-[0.15em] text-gallery-muted font-bold block"
+                  >
                     Kata Sandi*
                   </label>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gallery-muted" size={14} />
                   <input
+                    id="login-password"
                     type={showPassword ? 'text' : 'password'}
                     required
-                    placeholder="Masukkan kata sandi..."
+                    disabled={isLoading}
+                    placeholder="Masukkan kata sandi Anda..."
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-gallery-split/30 border-[0.5px] border-gallery-line focus:border-gallery-dark pl-9 pr-10 py-2.5 text-xs text-gallery-dark focus:outline-none font-sans placeholder-gallery-muted/50 transition-colors"
+                    className="w-full bg-gallery-split/30 border-[0.5px] border-gallery-line pl-9 pr-10 py-2.5 text-xs text-gallery-dark font-sans placeholder-gallery-muted/50 transition-colors focus-ring disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
+                    disabled={isLoading}
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gallery-muted hover:text-gallery-dark transition-colors cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gallery-muted hover:text-gallery-dark transition-colors cursor-pointer focus-ring"
+                    aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                   >
                     {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
@@ -171,20 +187,30 @@ function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gallery-dark text-gallery-base py-3 px-4 text-xs font-semibold uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2 group"
+              className="w-full bg-gallery-dark text-gallery-base py-3 px-4 text-xs font-semibold uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 group focus-ring"
             >
-              <span>{isLoading ? 'Sedang Memproses...' : 'MASUK KE DASHBOARD'}</span>
-              {!isLoading && <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 duration-200" />}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>SEDANG MEMPROSES...</span>
+                </>
+              ) : (
+                <>
+                  <span>MASUK KE DASHBOARD</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 duration-200" />
+                </>
+              )}
             </button>
           </form>
 
           {/* Helper details */}
-          <div className="border-t-[0.5px] border-gallery-line pt-6 text-[9px] text-gallery-muted uppercase font-semibold text-center leading-relaxed">
+          <div className="border-t-[0.5px] border-gallery-line pt-6 text-[10px] text-gallery-muted uppercase font-bold text-center leading-relaxed">
             Hanya administrator terdaftar yang memiliki akses sistem ini.<br />
-            Silakan hubungi tim IT Achi Craft Galery untuk pendaftaran.
+            Silakan hubungi tim IT Achi Craft Gallery untuk pendaftaran.
           </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
+

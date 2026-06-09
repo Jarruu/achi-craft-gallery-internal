@@ -5,11 +5,12 @@ export const getStockLogs = createServerFn({ method: 'GET' })
   .inputValidator(z.object({
     type: z.string().optional(),
     materialId: z.string().optional(),
-    limit: z.number().default(50),
+    page: z.number().optional(),
+    limit: z.number().optional(),
   }))
   .handler(async ({ data }) => {
     const { prisma } = await import('#/db.server')
-    const { type, materialId, limit } = data
+    const { type, materialId, page, limit } = data
 
     const where: any = {}
 
@@ -21,10 +22,22 @@ export const getStockLogs = createServerFn({ method: 'GET' })
       where.materialId = materialId
     }
 
-    return await prisma.stockLog.findMany({
+    const statsWhere: any = {}
+    if (materialId) {
+      statsWhere.materialId = materialId
+    }
+
+    // Query stats and items concurrently
+    const [totalCount, incomingCount, outgoingCount, adjustmentCount] = await Promise.all([
+      prisma.stockLog.count({ where }),
+      prisma.stockLog.count({ where: { ...statsWhere, type: 'INCOMING' } }),
+      prisma.stockLog.count({ where: { ...statsWhere, type: 'OUTGOING' } }),
+      prisma.stockLog.count({ where: { ...statsWhere, type: 'ADJUSTMENT' } }),
+    ])
+
+    const findOptions: any = {
       where,
       orderBy: { createdAt: 'desc' },
-      take: limit,
       include: {
         material: {
           select: {
@@ -35,5 +48,25 @@ export const getStockLogs = createServerFn({ method: 'GET' })
           },
         },
       },
-    })
+    }
+
+    if (page && limit) {
+      findOptions.skip = (page - 1) * limit
+      findOptions.take = limit
+    } else {
+      findOptions.take = limit || 50
+    }
+
+    const items = await prisma.stockLog.findMany(findOptions)
+
+    return { 
+      items, 
+      totalCount, 
+      stats: {
+        totalCount: materialId ? totalCount : await prisma.stockLog.count(),
+        incomingCount,
+        outgoingCount,
+        adjustmentCount
+      } 
+    }
   })

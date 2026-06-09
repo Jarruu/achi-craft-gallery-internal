@@ -101,6 +101,17 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className={`bg-gallery-base text-gallery-dark font-sans selection:bg-gallery-dark selection:text-gallery-base antialiased min-h-screen ${isLoginPage ? '' : 'flex flex-col md:flex-row'}`}>
+        
+        {/* Skip to Content for Keyboard Users */}
+        {!isLoginPage && (
+          <a 
+            href="#main-content" 
+            className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-gallery-dark focus:text-gallery-base focus:border-[0.5px] focus:border-gallery-line focus:rounded-md focus:font-semibold focus:text-xs focus:uppercase focus:tracking-wider focus:outline-none"
+          >
+            Lompat ke Konten Utama
+          </a>
+        )}
+
         {isLoginPage ? (
           children
         ) : (
@@ -111,12 +122,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <div className="p-8 pb-6 flex items-center gap-3.5 group/logo cursor-default">
                 <img 
                   src={achiLogo} 
-                  alt="Achi Craft Galery Logo" 
+                  alt="Logo Achi Craft Gallery" 
                   className="w-12 h-12 object-contain shrink-0 transition-transform duration-500 group-hover/logo:scale-105" 
                 />
                 <div>
                   <h1 className="text-sm font-serif tracking-tight text-gallery-dark mt-0.5 uppercase leading-tight transition-colors duration-300 group-hover/logo:text-black">
-                    ACHI CRAFT GALERY
+                    ACHI CRAFT GALLERY
                   </h1>
                 </div>
               </div>
@@ -125,53 +136,40 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <div className="border-b-[0.5px] border-gallery-line w-full" />
               
               {/* Navigation Links */}
-              <nav className="flex-1 py-8 flex flex-col gap-1">
-                <Link 
-                  to="/" 
-                  className="group no-underline flex items-center gap-3.5 px-8 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gallery-muted hover:text-gallery-dark transition-all duration-300 hover:bg-gallery-base/30 border-l-[3px] border-transparent hover:translate-x-1"
-                  activeProps={{ className: 'text-gallery-dark border-gallery-dark bg-gallery-base/50 translate-x-1' }}
-                  activeOptions={{ exact: true }}
-                >
-                  <LayoutDashboard size={16} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2" />
-                  <span className="transition-colors duration-300">Dashboard</span>
-                </Link>
-                <Link 
-                  to="/materials" 
-                  className="group no-underline flex items-center gap-3.5 px-8 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gallery-muted hover:text-gallery-dark transition-all duration-300 hover:bg-gallery-base/30 border-l-[3px] border-transparent hover:translate-x-1"
-                  activeProps={{ className: 'text-gallery-dark border-gallery-dark bg-gallery-base/50 translate-x-1' }}
-                >
-                  <Layers size={16} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2" />
-                  <span className="transition-colors duration-300">Bahan Baku</span>
-                </Link>
-                <Link 
-                  to="/products" 
-                  className="group no-underline flex items-center gap-3.5 px-8 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gallery-muted hover:text-gallery-dark transition-all duration-300 hover:bg-gallery-base/30 border-l-[3px] border-transparent hover:translate-x-1"
-                  activeProps={{ className: 'text-gallery-dark border-gallery-dark bg-gallery-base/50 translate-x-1' }}
-                >
-                  <Cpu size={16} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2" />
-                  <span className="transition-colors duration-300">Daftar Produk</span>
-                </Link>
-                <Link 
-                  to="/logs" 
-                  className="group no-underline flex items-center gap-3.5 px-8 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gallery-muted hover:text-gallery-dark transition-all duration-300 hover:bg-gallery-base/30 border-l-[3px] border-transparent hover:translate-x-1"
-                  activeProps={{ className: 'text-gallery-dark border-gallery-dark bg-gallery-base/50 translate-x-1' }}
-                >
-                  <History size={16} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2" />
-                  <span className="transition-colors duration-300">Riwayat Stok</span>
-                </Link>
+              <nav aria-label="Navigasi Utama Desktop" className="flex-1 py-8 flex flex-col gap-1">
+                {[
+                  { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+                  { to: '/materials', label: 'Bahan Baku', icon: Layers },
+                  { to: '/products', label: 'Daftar Produk', icon: Cpu },
+                  { to: '/logs', label: 'Riwayat Stok', icon: History },
+                ].map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <Link 
+                      key={item.to}
+                      to={item.to} 
+                      activeOptions={{ exact: item.exact }}
+                      className="group no-underline flex items-center gap-3.5 px-8 py-3.5 text-xs font-semibold uppercase tracking-wider text-gallery-muted hover:text-gallery-dark transition-all duration-300 hover:bg-gallery-base/30 border-l-[3px] border-transparent hover:translate-x-1 focus-ring"
+                      activeProps={{ className: 'text-gallery-dark border-gallery-dark bg-gallery-base/50 translate-x-1' }}
+                    >
+                      <Icon size={16} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2" />
+                      <span className="transition-colors duration-300">{item.label}</span>
+                    </Link>
+                  )
+                })}
               </nav>
               
               {/* Sidebar Footer Profile */}
               <div className="p-6 border-t-[0.5px] border-gallery-line flex flex-col gap-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0 group/profile cursor-pointer">
+                  <div className="flex items-center gap-3 min-w-0 group/profile cursor-pointer" title={`Masuk sebagai ${user || 'Administrator'}`}>
                     {/* Avatar */}
                     <div className="w-8 h-8 rounded-full border-[0.5px] border-gallery-line bg-gallery-dark flex items-center justify-center text-[#F3F1F1] shrink-0 font-serif text-xs font-semibold select-none transition-all duration-300 group-hover/profile:scale-105 group-hover/profile:rotate-6">
                       {user ? user.charAt(0).toUpperCase() : 'A'}
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="text-[10px] uppercase tracking-[0.1em] text-gallery-muted font-bold">Logged in as</span>
-                      <span className="text-xs font-semibold text-gallery-dark truncate max-w-[130px] font-sans transition-colors duration-300 group-hover/profile:text-black" title={user || 'Administrator'}>
+                      <span className="text-[10px] uppercase tracking-[0.1em] text-gallery-muted font-bold">Masuk sebagai</span>
+                      <span className="text-xs font-semibold text-gallery-dark truncate max-w-[130px] font-sans transition-colors duration-300 group-hover/profile:text-black">
                         {user || 'Administrator'}
                       </span>
                     </div>
@@ -180,15 +178,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   {/* Logout Button */}
                   <button
                     onClick={handleLogout}
-                    className="p-2 border-[0.5px] border-gallery-line hover:border-red-700 hover:text-red-700 hover:scale-105 active:scale-95 transition-all duration-300 text-gallery-muted cursor-pointer flex items-center justify-center shrink-0"
-                    title="Keluar"
+                    className="p-2 border-[0.5px] border-gallery-line hover:border-red-750 hover:text-red-700 hover:scale-105 active:scale-95 transition-all duration-300 text-gallery-muted cursor-pointer flex items-center justify-center shrink-0 focus-ring"
+                    title="Keluar dari Akun"
+                    aria-label="Keluar dari Akun"
                   >
                     <LogOut size={14} />
                   </button>
                 </div>
                 
                 {/* Copyright info */}
-                <div className="text-[8px] tracking-[0.2em] text-gallery-muted uppercase font-bold opacity-60">
+                <div className="text-[10px] tracking-[0.15em] text-gallery-muted uppercase font-bold opacity-75">
                   © {new Date().getFullYear()} ACG • PADANG
                 </div>
               </div>
@@ -199,19 +198,20 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-2.5 group/logo cursor-default">
                 <img 
                   src={achiLogo} 
-                  alt="Achi Logo" 
+                  alt="Logo Achi" 
                   className="w-8 h-8 object-contain shrink-0 transition-transform duration-500 group-hover/logo:scale-105" 
                 />
                 <div>
                   <h1 className="text-xs font-serif tracking-tight text-gallery-dark uppercase mt-0.5 leading-tight transition-colors duration-300 group-hover/logo:text-black">
-                    ACHI CRAFT GALERY
+                    ACHI CRAFT GALLERY
                   </h1>
                 </div>
               </div>
               <button 
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 border-[0.5px] border-gallery-line bg-gallery-split hover:border-gallery-dark hover:scale-105 active:scale-95 transition-all text-gallery-dark cursor-pointer flex items-center justify-center"
-                aria-label="Menu"
+                className="p-2 border-[0.5px] border-gallery-line bg-gallery-split hover:border-gallery-dark hover:scale-105 active:scale-95 transition-all text-gallery-dark cursor-pointer flex items-center justify-center focus-ring"
+                aria-label={isMobileMenuOpen ? "Tutup Menu" : "Buka Menu"}
+                aria-expanded={isMobileMenuOpen}
               >
                 {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
               </button>
@@ -219,19 +219,27 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
             {/* MOBILE DRAWER SIDEBAR NAVIGATION OVERLAY */}
             {isMobileMenuOpen && (
-              <div className="md:hidden fixed inset-0 z-50 flex">
+              <div className="md:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Menu Navigasi Mobile">
                 {/* Backdrop */}
                 <div 
                   className="fixed inset-0 bg-gallery-dark/25 backdrop-blur-xs transition-opacity duration-300" 
                   onClick={() => setIsMobileMenuOpen(false)}
                 />
                 {/* Slide-out Panel */}
-                <aside className="relative flex flex-col w-72 max-w-[80vw] h-full bg-gallery-split border-r-[0.5px] border-gallery-line rise-in shadow-xl">
+                <aside 
+                  className="relative flex flex-col w-72 max-w-[80vw] h-full bg-gallery-split border-r-[0.5px] border-gallery-line rise-in shadow-xl focus:outline-none"
+                  tabIndex={-1}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setIsMobileMenuOpen(false)
+                    }
+                  }}
+                >
                   <div className="p-6 pb-4 flex items-center justify-between">
                     <div className="flex items-center gap-3 group/logo cursor-default">
                       <img 
                         src={achiLogo} 
-                        alt="Achi Logo" 
+                        alt="Logo Achi" 
                         className="w-10 h-10 object-contain shrink-0 transition-transform duration-500 group-hover/logo:scale-105" 
                       />
                       <div>
@@ -239,13 +247,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                           SISTEM INVENTARIS
                         </div>
                         <h1 className="text-sm font-serif tracking-tight text-gallery-dark uppercase mt-0.5 leading-tight transition-colors duration-300 group-hover/logo:text-black">
-                          ACHI CRAFT GALERY
+                          ACHI CRAFT GALLERY
                         </h1>
                       </div>
                     </div>
                     <button 
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className="p-1.5 border-[0.5px] border-gallery-line hover:border-gallery-dark hover:scale-105 active:scale-95 transition-all text-gallery-dark cursor-pointer flex items-center justify-center"
+                      className="p-1.5 border-[0.5px] border-gallery-line hover:border-gallery-dark hover:scale-105 active:scale-95 transition-all text-gallery-dark cursor-pointer flex items-center justify-center focus-ring"
+                      aria-label="Tutup Menu"
                     >
                       <X size={16} />
                     </button>
@@ -253,57 +262,41 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   
                   <div className="border-b-[0.5px] border-gallery-line w-full" />
                   
-                  <nav className="flex-1 py-6 flex flex-col gap-1">
-                    <Link 
-                      to="/" 
-                      className="group no-underline flex items-center gap-3 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gallery-muted hover:text-gallery-dark transition-all duration-300 hover:bg-gallery-base/30 border-l-[3px] border-transparent hover:translate-x-1"
-                      activeProps={{ className: 'text-gallery-dark border-gallery-dark bg-gallery-base/50 translate-x-1' }}
-                      activeOptions={{ exact: true }}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      <LayoutDashboard size={14} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2" />
-                      <span className="transition-colors duration-300">Dashboard</span>
-                    </Link>
-                    <Link 
-                      to="/materials" 
-                      className="group no-underline flex items-center gap-3 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gallery-muted hover:text-gallery-dark transition-all duration-300 hover:bg-gallery-base/30 border-l-[3px] border-transparent hover:translate-x-1"
-                      activeProps={{ className: 'text-gallery-dark border-gallery-dark bg-gallery-base/50 translate-x-1' }}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      <Layers size={14} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2" />
-                      <span className="transition-colors duration-300">Bahan Baku</span>
-                    </Link>
-                    <Link 
-                      to="/products" 
-                      className="group no-underline flex items-center gap-3 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gallery-muted hover:text-gallery-dark transition-all duration-300 hover:bg-gallery-base/30 border-l-[3px] border-transparent hover:translate-x-1"
-                      activeProps={{ className: 'text-gallery-dark border-gallery-dark bg-gallery-base/50 translate-x-1' }}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      <Cpu size={14} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2" />
-                      <span className="transition-colors duration-300">Daftar Produk</span>
-                    </Link>
-                    <Link 
-                      to="/logs" 
-                      className="group no-underline flex items-center gap-3 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gallery-muted hover:text-gallery-dark transition-all duration-300 hover:bg-gallery-base/30 border-l-[3px] border-transparent hover:translate-x-1"
-                      activeProps={{ className: 'text-gallery-dark border-gallery-dark bg-gallery-base/50 translate-x-1' }}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      <History size={14} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2" />
-                      <span className="transition-colors duration-300">Riwayat Stok</span>
-                    </Link>
+                  <nav aria-label="Navigasi Utama Mobile" className="flex-1 py-6 flex flex-col gap-1">
+                    {[
+                      { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+                      { to: '/materials', label: 'Bahan Baku', icon: Layers },
+                      { to: '/products', label: 'Daftar Produk', icon: Cpu },
+                      { to: '/logs', label: 'Riwayat Stok', icon: History },
+                    ].map((item) => {
+                      const Icon = item.icon
+                      return (
+                        <Link 
+                          key={item.to}
+                          to={item.to} 
+                          activeOptions={{ exact: item.exact }}
+                          className="group no-underline flex items-center gap-3 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-gallery-muted hover:text-gallery-dark transition-all duration-300 hover:bg-gallery-base/30 border-l-[3px] border-transparent hover:translate-x-1 focus-ring"
+                          activeProps={{ className: 'text-gallery-dark border-gallery-dark bg-gallery-base/50 translate-x-1' }}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          <Icon size={14} className="transition-transform duration-300 group-hover:scale-110 group-hover:rotate-2" />
+                          <span className="transition-colors duration-300">{item.label}</span>
+                        </Link>
+                      )
+                    })}
                   </nav>
                   
                   {/* Mobile Drawer Footer Profile */}
                   <div className="p-6 border-t-[0.5px] border-gallery-line flex flex-col gap-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0 group/profile cursor-pointer">
+                      <div className="flex items-center gap-3 min-w-0 group/profile cursor-pointer" title={`Masuk sebagai ${user || 'Administrator'}`}>
                         {/* Avatar */}
                         <div className="w-8 h-8 rounded-full border-[0.5px] border-gallery-line bg-gallery-dark flex items-center justify-center text-[#F3F1F1] shrink-0 font-serif text-xs font-semibold select-none transition-all duration-300 group-hover/profile:scale-105 group-hover/profile:rotate-6">
                           {user ? user.charAt(0).toUpperCase() : 'A'}
                         </div>
                         <div className="flex flex-col min-w-0">
-                          <span className="text-[10px] uppercase tracking-[0.1em] text-gallery-muted font-bold">Logged in as</span>
-                          <span className="text-xs font-semibold text-gallery-dark truncate max-w-[130px] font-sans transition-colors duration-300 group-hover/profile:text-black" title={user || 'Administrator'}>
+                          <span className="text-[10px] uppercase tracking-[0.1em] text-gallery-muted font-bold">Masuk sebagai</span>
+                          <span className="text-xs font-semibold text-gallery-dark truncate max-w-[130px] font-sans transition-colors duration-300 group-hover/profile:text-black">
                             {user || 'Administrator'}
                           </span>
                         </div>
@@ -315,15 +308,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                           setIsMobileMenuOpen(false)
                           handleLogout()
                         }}
-                        className="p-2 border-[0.5px] border-gallery-line hover:border-red-700 hover:text-red-700 hover:scale-105 active:scale-95 transition-all duration-300 text-gallery-muted cursor-pointer flex items-center justify-center shrink-0"
-                        title="Keluar"
+                        className="p-2 border-[0.5px] border-gallery-line hover:border-red-700 hover:text-red-700 hover:scale-105 active:scale-95 transition-all duration-300 text-gallery-muted cursor-pointer flex items-center justify-center shrink-0 focus-ring"
+                        title="Keluar dari Akun"
+                        aria-label="Keluar dari Akun"
                       >
                         <LogOut size={14} />
                       </button>
                     </div>
                     
                     {/* Copyright info */}
-                    <div className="text-[8px] tracking-[0.2em] text-gallery-muted uppercase font-bold opacity-60">
+                    <div className="text-[10px] tracking-[0.15em] text-gallery-muted uppercase font-bold opacity-75">
                       © {new Date().getFullYear()} ACG • PADANG
                     </div>
                   </div>
@@ -338,9 +332,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 src={artGallery60} 
                 alt="" 
                 className="fixed inset-0 w-full h-full object-cover opacity-[0.5] pointer-events-none select-none z-0 mix-blend-multiply"
+                style={{ willChange: 'opacity, transform' }}
               />
               
-              <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto relative z-10">
+              <main id="main-content" className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto relative z-10 focus:outline-none" tabIndex={-1}>
                 {children}
               </main>
             </div>
@@ -352,13 +347,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             <DialogHeader>
               <DialogTitle>Konfirmasi Keluar</DialogTitle>
               <DialogDescription>
-                Apakah Anda yakin ingin keluar dari sistem inventaris Achi Craft Galery? Kredensial masuk Anda akan dihapus dari peramban ini.
+                Apakah Anda yakin ingin keluar dari sistem inventaris Achi Craft Gallery? Kredensial masuk Anda akan dihapus dari peramban ini.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="flex sm:justify-end gap-2">
+            <DialogFooter className="flex sm:justify-end gap-2 pt-4">
               <button
                 onClick={() => setIsLogoutDialogOpen(false)}
-                className="px-4 py-2 text-xs font-semibold uppercase tracking-wider border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base text-gallery-muted hover:text-gallery-dark transition-all cursor-pointer font-sans"
+                className="px-4 py-2 text-xs font-semibold uppercase tracking-wider border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base text-gallery-muted hover:text-gallery-dark transition-all cursor-pointer font-sans focus-ring"
               >
                 Batal
               </button>
@@ -368,7 +363,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   document.cookie = 'acg_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
                   window.location.href = '/login'
                 }}
-                className="px-4 py-2 text-xs font-semibold uppercase tracking-wider bg-destructive text-destructive-foreground hover:opacity-90 transition-all cursor-pointer font-sans"
+                className="px-4 py-2 text-xs font-semibold uppercase tracking-wider bg-destructive text-destructive-foreground hover:opacity-90 transition-all cursor-pointer font-sans focus-ring"
               >
                 Ya, Keluar
               </button>
@@ -382,3 +377,4 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     </html>
   )
 }
+
