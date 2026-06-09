@@ -10,10 +10,6 @@ const config = defineConfig({
 
   ssr: {
     noExternal: [
-      '@prisma/client',
-      '@prisma/client/*',
-      '.prisma',
-      '@prisma/adapter-pg'
     ],
   },
 

@@ -32,7 +32,7 @@
   --border: rgba(46, 45, 49, 0.12);
   --input: rgba(46, 45, 49, 0.12);
   --ring: #2E2D31;
-  --radius: 0px; /* Sharp editorial border corners */
+  --radius: 0.5rem; /* Clean rounded corners */
 }
 
 @theme inline {
@@ -62,10 +62,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 html,
@@ -101,7 +101,7 @@ code {
   font-size: 0.9em;
   border: 0.5px solid var(--border);
   background: var(--bg-gallery-split);
-  border-radius: 0px;
+  border-radius: var(--radius-sm);
   padding: 2px 7px;
 }
 
@@ -116,7 +116,7 @@ pre code {
 
 .prose pre {
   border: 0.5px solid var(--border);
-  border-radius: 0px;
+  border-radius: var(--radius-md);
   background: var(--bg-gallery-split);
   color: var(--foreground);
 }
@@ -133,11 +133,13 @@ pre code {
 .island-shell {
   border: 0.5px solid var(--border);
   background: var(--bg-gallery-split);
+  border-radius: var(--radius-lg);
 }
 
 .feature-card {
   background: var(--bg-gallery-split);
   border: 0.5px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .feature-card:hover {
@@ -208,5 +210,29 @@ a {
   body {
     background-color: var(--background);
     color: var(--foreground);
+  }
+
+  /* Make form inputs, selects, textareas, and buttons rounded by default to look clean and premium */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]),
+  select,
+  textarea {
+    @apply rounded-md;
+  }
+
+  button,
+  .button {
+    @apply rounded-md;
+  }
+
+  /* Ensure all cards, containers, grid lists, and table wrappers with borders are rounded */
+  .border-\[0\.5px\],
+  .border {
+    @apply rounded-md;
+  }
+
+  /* Ensure preview images with borders are rounded */
+  img.border-\[0\.5px\],
+  img.border {
+    @apply rounded-sm;
   }
 }

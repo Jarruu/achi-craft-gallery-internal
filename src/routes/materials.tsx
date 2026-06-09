@@ -206,6 +206,22 @@ function MaterialsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
 
+  const handleSelectMaterial = (m: any) => {
+    setSelectedMaterial(m)
+    setIsAdding(false)
+    setStockDelta(0)
+    setAdjNotes('')
+    
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setTimeout(() => {
+        const detailPanel = document.getElementById('detail-panel')
+        if (detailPanel) {
+          detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
+    }
+  }
+
   // Edit Material States & Handlers
   const [isEditing, setIsEditing] = useState(false)
   const [editMaterialData, setEditMaterialData] = useState({
@@ -798,7 +814,7 @@ function MaterialsPage() {
             </div>
           ) : viewMode === 'table' ? (
             /* COMPACT TABLE LAYOUT */
-            <div className="border-[0.5px] border-gallery-line bg-gallery-split overflow-hidden">
+            <div className="border-[0.5px] border-gallery-line bg-gallery-split overflow-x-auto">
               <table className="w-full text-left border-collapse table-auto">
                 <thead>
                   <tr className="border-b-[0.5px] border-gallery-line bg-gallery-base/40 text-[9px] font-bold uppercase tracking-widest text-gallery-muted">
@@ -824,12 +840,7 @@ function MaterialsPage() {
                     return (
                       <tr 
                         key={m.id}
-                        onClick={() => {
-                          setSelectedMaterial(m)
-                          setIsAdding(false)
-                          setStockDelta(0)
-                          setAdjNotes('')
-                        }}
+                        onClick={() => handleSelectMaterial(m)}
                         className={`cursor-pointer hover:bg-gallery-base/50 transition-colors ${
                           selectedMaterial?.id === m.id ? 'bg-gallery-base/80' : ''
                         } ${isOutOfStock ? 'bg-red-50/10' : isLowStock ? 'bg-amber-50/5' : ''}`}
@@ -909,12 +920,7 @@ function MaterialsPage() {
                 return (
                   <div 
                     key={m.id}
-                    onClick={() => {
-                      setSelectedMaterial(m)
-                      setIsAdding(false)
-                      setStockDelta(0)
-                      setAdjNotes('')
-                    }}
+                    onClick={() => handleSelectMaterial(m)}
                     className={`bg-gallery-split border-[0.5px] cursor-pointer relative flex flex-col group transition-all duration-300 ${
                       selectedMaterial?.id === m.id 
                         ? 'border-gallery-dark ring-1 ring-gallery-dark/15' 
@@ -1059,7 +1065,7 @@ function MaterialsPage() {
         </div>
 
       {/* RIGHT COLUMN: Action board / detail log / creation pane (4/12) */}
-      <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-10">
+      <div id="detail-panel" className="lg:col-span-4 space-y-6 lg:sticky lg:top-10">
 
         {/* CASE B: Material Details and Stock Adjustment Panel */}
         {selectedMaterial && (
@@ -1317,7 +1323,7 @@ function MaterialsPage() {
                     return (
                       <div 
                         key={m.id}
-                        onClick={() => setSelectedMaterial(m)}
+                        onClick={() => handleSelectMaterial(m)}
                         className="bg-white border-l-2 border-red-600 border-[0.5px] border-gallery-line p-3 flex justify-between items-center cursor-pointer hover:border-gallery-dark duration-150"
                       >
                         <div>
@@ -1354,7 +1360,7 @@ function MaterialsPage() {
                     return (
                       <div 
                         key={m.id}
-                        onClick={() => setSelectedMaterial(m)}
+                        onClick={() => handleSelectMaterial(m)}
                         className="bg-white border-l-2 border-amber-500 border-[0.5px] border-gallery-line p-3 flex justify-between items-center cursor-pointer hover:border-gallery-dark duration-150"
                       >
                         <div>
@@ -1388,7 +1394,7 @@ function MaterialsPage() {
                   {outOfStockMaterials.map(m => (
                     <div 
                       key={m.id}
-                      onClick={() => setSelectedMaterial(m)}
+                      onClick={() => handleSelectMaterial(m)}
                       className="bg-white border-l-2 border-red-600 border-[0.5px] border-gallery-line p-3 flex justify-between items-center cursor-pointer hover:border-gallery-dark duration-150"
                     >
                       <div>
@@ -1421,7 +1427,7 @@ function MaterialsPage() {
                   {lowStockMaterials.map(m => (
                     <div 
                       key={m.id}
-                      onClick={() => setSelectedMaterial(m)}
+                      onClick={() => handleSelectMaterial(m)}
                       className="bg-white border-l-2 border-amber-500 border-[0.5px] border-gallery-line p-3 flex justify-between items-center cursor-pointer hover:border-gallery-dark duration-150"
                     >
                       <div>

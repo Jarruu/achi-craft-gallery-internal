@@ -58,7 +58,7 @@ function DialogContent({
         <DialogPrimitive.Content
           data-slot="dialog-content"
           className={cn(
-            "relative bg-gallery-split border-[0.5px] border-gallery-dark p-6 space-y-5 w-full max-w-lg shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200 focus:outline-none max-h-[90vh] flex flex-col",
+            "relative bg-gallery-split border-[0.5px] border-gallery-dark p-6 space-y-5 w-full max-w-lg rounded-lg shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200 focus:outline-none max-h-[90vh] flex flex-col",
             className
           )}
           {...props}

@@ -97,6 +97,20 @@ function ProductsPage() {
   // State management
   const [selectedProduct, setSelectedProduct] = useState<any>(null)
 
+  const handleSelectProduct = (p: any) => {
+    setSelectedProduct(p)
+    setIsAdding(false)
+    
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setTimeout(() => {
+        const detailPanel = document.getElementById('detail-panel')
+        if (detailPanel) {
+          detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
+    }
+  }
+
   // State for production feature
   const router = useRouter()
   const [productionQty, setProductionQty] = useState<number>(1)
@@ -528,7 +542,7 @@ function ProductsPage() {
             </div>
           ) : viewMode === 'table' ? (
             /* COMPACT TABLE LAYOUT */
-            <div className="border-[0.5px] border-gallery-line bg-gallery-split overflow-hidden">
+            <div className="border-[0.5px] border-gallery-line bg-gallery-split overflow-x-auto">
               <table className="w-full text-left border-collapse table-auto">
                 <thead>
                   <tr className="border-b-[0.5px] border-gallery-line bg-gallery-base/40 text-[9px] font-bold uppercase tracking-widest text-gallery-muted">
@@ -548,10 +562,7 @@ function ProductsPage() {
                     return (
                       <tr 
                         key={p.id}
-                        onClick={() => {
-                          setSelectedProduct(p)
-                          setIsAdding(false)
-                        }}
+                        onClick={() => handleSelectProduct(p)}
                         className={`cursor-pointer hover:bg-gallery-base/50 transition-colors ${
                           selectedProduct?.id === p.id ? 'bg-gallery-base/80' : ''
                         } ${hasWarnings ? 'bg-red-50/5' : ''}`}
@@ -599,10 +610,7 @@ function ProductsPage() {
                 return (
                   <div 
                     key={p.id}
-                    onClick={() => {
-                      setSelectedProduct(p)
-                      setIsAdding(false)
-                    }}
+                    onClick={() => handleSelectProduct(p)}
                     className={`bg-gallery-split border-[0.5px] cursor-pointer flex flex-col relative group transition-all duration-300 ${
                       selectedProduct?.id === p.id 
                         ? 'border-gallery-dark ring-1 ring-gallery-dark/15' 
@@ -734,7 +742,7 @@ function ProductsPage() {
         </div>
 
       {/* RIGHT COLUMN: Detail Viewer / Creator Panel (5/12) */}
-      <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-10">
+      <div id="detail-panel" className="lg:col-span-5 space-y-6 lg:sticky lg:top-10">
         
         {/* CASE A: Create Innovation Panel - Moved to Dialog Modal */}
 
