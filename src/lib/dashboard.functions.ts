@@ -33,20 +33,37 @@ export const getDashboardStats = createServerFn({ method: 'GET' })
       },
     })
 
-    // Group materials by type: LEATHER, FABRIC, GLUE, ZIPPER, ACCESSORY
-    const typeStats = {
-      LEATHER: { count: 0, stock: 0 },
-      FABRIC: { count: 0, stock: 0 },
-      GLUE: { count: 0, stock: 0 },
-      ZIPPER: { count: 0, stock: 0 },
-      ACCESSORY: { count: 0, stock: 0 },
-    }
+    // Fetch active types from options database
+    const activeTypes = await prisma.typeOption.findMany({
+      select: {
+        name: true,
+        label: true,
+      },
+      orderBy: { name: 'asc' },
+    })
+
+    // Group materials dynamically by active types
+    const typeStats: Record<string, { label: string; count: number; stock: number }> = {}
+    activeTypes.forEach((t) => {
+      typeStats[t.name] = {
+        label: t.label || t.name,
+        count: 0,
+        stock: 0,
+      }
+    })
 
     materials.forEach((m) => {
-      const type = m.type as keyof typeof typeStats
+      const type = m.type
       if (typeStats[type]) {
         typeStats[type].count += 1
         typeStats[type].stock += m.stock
+      } else {
+        // Fallback for types that might not be in typeOption table
+        typeStats[type] = {
+          label: type,
+          count: 1,
+          stock: m.stock,
+        }
       }
     })
 

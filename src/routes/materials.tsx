@@ -11,7 +11,8 @@ import {
 } from '../lib/materials.functions'
 import {
   getDropdownOptions,
-  addDropdownOption
+  addDropdownOption,
+  deleteDropdownOption
 } from '../lib/options.functions'
 import { Search, Plus, Calendar, AlertTriangle } from 'lucide-react'
 import { uploadToImgBB } from '../components/ImageUploadInput'
@@ -191,101 +192,106 @@ function MaterialsPage() {
   })
   const [newMaterialFile, setNewMaterialFile] = useState<File | null>(null)
 
-  // Inline dynamic option creation states & handlers
-  const [isAddingTypeInline, setIsAddingTypeInline] = useState(false)
-  const [inlineTypeValue, setInlineTypeValue] = useState('')
-  const [isAddingCategoryInline, setIsAddingCategoryInline] = useState(false)
-  const [inlineCategoryValue, setInlineCategoryValue] = useState('')
-  const [isAddingQualityInline, setIsAddingQualityInline] = useState(false)
-  const [inlineQualityValue, setInlineQualityValue] = useState('')
-  const [isAddingUnitInline, setIsAddingUnitInline] = useState(false)
-  const [inlineUnitValue, setInlineUnitValue] = useState('')
-
-  const handleSaveTypeInline = async () => {
-    const val = inlineTypeValue.trim()
-    if (!val) return
+  // Unified option creation handler
+  const handleAddOption = async (type: 'type' | 'category' | 'quality' | 'unit', val: string) => {
+    const cleanVal = val.trim()
+    if (!cleanVal) return
     try {
-      await addDropdownOption({
-        data: { 
-          type: 'type', 
-          name: val.toUpperCase(), 
-          label: val 
+      if (type === 'type') {
+        await addDropdownOption({
+          data: { 
+            type: 'type', 
+            name: cleanVal.toUpperCase(), 
+            label: cleanVal 
+          }
+        })
+        if (isEditing) {
+          setEditMaterialData(prev => ({ ...prev, type: cleanVal.toUpperCase() }))
+        } else {
+          setNewMaterial(prev => ({ ...prev, type: cleanVal.toUpperCase() }))
         }
-      })
-      toast.success(`Tipe "${val}" berhasil ditambahkan`)
-      setInlineTypeValue('')
-      setIsAddingTypeInline(false)
-      if (isEditing) {
-        setEditMaterialData(prev => ({ ...prev, type: val.toUpperCase() }))
       } else {
-        setNewMaterial(prev => ({ ...prev, type: val.toUpperCase() }))
+        await addDropdownOption({
+          data: { type, name: cleanVal }
+        })
+        if (type === 'category') {
+          if (isEditing) {
+            setEditMaterialData(prev => ({ ...prev, category: cleanVal }))
+          } else {
+            setNewMaterial(prev => ({ ...prev, category: cleanVal }))
+          }
+        } else if (type === 'quality') {
+          if (isEditing) {
+            setEditMaterialData(prev => ({ ...prev, quality: cleanVal }))
+          } else {
+            setNewMaterial(prev => ({ ...prev, quality: cleanVal }))
+          }
+        } else if (type === 'unit') {
+          if (isEditing) {
+            setEditMaterialData(prev => ({ ...prev, unit: cleanVal }))
+          } else {
+            setNewMaterial(prev => ({ ...prev, unit: cleanVal }))
+          }
+        }
       }
+      toast.success(`Opsi "${cleanVal}" berhasil ditambahkan.`)
       navigate({ to: '/materials', search: searchParams })
     } catch (err: any) {
-      toast.error('Gagal Menambahkan Tipe', { description: err.message })
+      toast.error('Gagal Menambahkan Opsi', { description: err.message })
+      throw err
     }
   }
 
-  const handleSaveCategoryInline = async () => {
-    const val = inlineCategoryValue.trim()
-    if (!val) return
+  const handleDeleteOption = async (type: 'type' | 'category' | 'quality' | 'unit', id: string, name: string) => {
     try {
-      await addDropdownOption({
-        data: { type: 'category', name: val }
+      await deleteDropdownOption({
+        data: { type, id }
       })
-      toast.success(`Kategori "${val}" berhasil ditambahkan`)
-      setInlineCategoryValue('')
-      setIsAddingCategoryInline(false)
-      if (isEditing) {
-        setEditMaterialData(prev => ({ ...prev, category: val }))
-      } else {
-        setNewMaterial(prev => ({ ...prev, category: val }))
+      toast.success(`Opsi "${name}" berhasil dihapus.`)
+      
+      // Update form state if the deleted option was selected
+      if (type === 'type') {
+        if (newMaterial.type === name) {
+          const next = options.types.find(o => o.id !== id)
+          setNewMaterial(prev => ({ ...prev, type: next ? next.name : '' }))
+        }
+        if (editMaterialData.type === name) {
+          const next = options.types.find(o => o.id !== id)
+          setEditMaterialData(prev => ({ ...prev, type: next ? next.name : '' }))
+        }
+      } else if (type === 'category') {
+        if (newMaterial.category === name) {
+          const next = options.categories.find(o => o.id !== id)
+          setNewMaterial(prev => ({ ...prev, category: next ? next.name : '' }))
+        }
+        if (editMaterialData.category === name) {
+          const next = options.categories.find(o => o.id !== id)
+          setEditMaterialData(prev => ({ ...prev, category: next ? next.name : '' }))
+        }
+      } else if (type === 'quality') {
+        if (newMaterial.quality === name) {
+          const next = options.qualities.find(o => o.id !== id)
+          setNewMaterial(prev => ({ ...prev, quality: next ? next.name : '' }))
+        }
+        if (editMaterialData.quality === name) {
+          const next = options.qualities.find(o => o.id !== id)
+          setEditMaterialData(prev => ({ ...prev, quality: next ? next.name : '' }))
+        }
+      } else if (type === 'unit') {
+        if (newMaterial.unit === name) {
+          const next = options.units.find(o => o.id !== id)
+          setNewMaterial(prev => ({ ...prev, unit: next ? next.name : '' }))
+        }
+        if (editMaterialData.unit === name) {
+          const next = options.units.find(o => o.id !== id)
+          setEditMaterialData(prev => ({ ...prev, unit: next ? next.name : '' }))
+        }
       }
-      navigate({ to: '/materials', search: searchParams })
-    } catch (err: any) {
-      toast.error('Gagal Menambahkan Kategori', { description: err.message })
-    }
-  }
 
-  const handleSaveQualityInline = async () => {
-    const val = inlineQualityValue.trim()
-    if (!val) return
-    try {
-      await addDropdownOption({
-        data: { type: 'quality', name: val }
-      })
-      toast.success(`Kualitas "${val}" berhasil ditambahkan`)
-      setInlineQualityValue('')
-      setIsAddingQualityInline(false)
-      if (isEditing) {
-        setEditMaterialData(prev => ({ ...prev, quality: val }))
-      } else {
-        setNewMaterial(prev => ({ ...prev, quality: val }))
-      }
       navigate({ to: '/materials', search: searchParams })
     } catch (err: any) {
-      toast.error('Gagal Menambahkan Kualitas', { description: err.message })
-    }
-  }
-
-  const handleSaveUnitInline = async () => {
-    const val = inlineUnitValue.trim()
-    if (!val) return
-    try {
-      await addDropdownOption({
-        data: { type: 'unit', name: val }
-      })
-      toast.success(`Satuan "${val}" berhasil ditambahkan`)
-      setInlineUnitValue('')
-      setIsAddingUnitInline(false)
-      if (isEditing) {
-        setEditMaterialData(prev => ({ ...prev, unit: val }))
-      } else {
-        setNewMaterial(prev => ({ ...prev, unit: val }))
-      }
-      navigate({ to: '/materials', search: searchParams })
-    } catch (err: any) {
-      toast.error('Gagal Menambahkan Satuan', { description: err.message })
+      toast.error('Gagal Menghapus Opsi', { description: err.message })
+      throw err
     }
   }
 
@@ -869,6 +875,7 @@ function MaterialsPage() {
       {/* FORM DIALOGS */}
       <MaterialFormDialogs
         options={options}
+        handleDeleteOption={handleDeleteOption}
         isAdding={isAdding}
         setIsAdding={setIsAdding}
         newMaterial={newMaterial}
@@ -890,26 +897,7 @@ function MaterialsPage() {
         selectedMaterial={selectedMaterial}
         isDeleting={isDeleting}
         handleDeleteMaterial={handleDeleteMaterial}
-        isAddingTypeInline={isAddingTypeInline}
-        setIsAddingTypeInline={setIsAddingTypeInline}
-        inlineTypeValue={inlineTypeValue}
-        setInlineTypeValue={setInlineTypeValue}
-        handleSaveTypeInline={handleSaveTypeInline}
-        isAddingCategoryInline={isAddingCategoryInline}
-        setIsAddingCategoryInline={setIsAddingCategoryInline}
-        inlineCategoryValue={inlineCategoryValue}
-        setInlineCategoryValue={setInlineCategoryValue}
-        handleSaveCategoryInline={handleSaveCategoryInline}
-        isAddingQualityInline={isAddingQualityInline}
-        setIsAddingQualityInline={setIsAddingQualityInline}
-        inlineQualityValue={inlineQualityValue}
-        setInlineQualityValue={setInlineQualityValue}
-        handleSaveQualityInline={handleSaveQualityInline}
-        isAddingUnitInline={isAddingUnitInline}
-        setIsAddingUnitInline={setIsAddingUnitInline}
-        inlineUnitValue={inlineUnitValue}
-        setInlineUnitValue={setInlineUnitValue}
-        handleSaveUnitInline={handleSaveUnitInline}
+        handleAddOption={handleAddOption}
       />
 
     </div>

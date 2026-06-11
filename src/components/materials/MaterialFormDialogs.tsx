@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog'
 import { ImageUploadInput } from '../ImageUploadInput'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Trash2 } from 'lucide-react'
 import * as React from 'react'
 
 interface MaterialFormDialogsProps {
@@ -11,6 +11,7 @@ interface MaterialFormDialogsProps {
     qualities: any[]
     units: any[]
   }
+  handleDeleteOption: (type: 'type' | 'category' | 'quality' | 'unit', id: string, name: string) => Promise<void>
   
   // Create Dialog State
   isAdding: boolean
@@ -39,34 +40,13 @@ interface MaterialFormDialogsProps {
   isDeleting: boolean
   handleDeleteMaterial: () => void
 
-  // Inline Option Add Helpers
-  isAddingTypeInline: boolean
-  setIsAddingTypeInline: (adding: boolean) => void
-  inlineTypeValue: string
-  setInlineTypeValue: (val: string) => void
-  handleSaveTypeInline: () => void
-
-  isAddingCategoryInline: boolean
-  setIsAddingCategoryInline: (adding: boolean) => void
-  inlineCategoryValue: string
-  setInlineCategoryValue: (val: string) => void
-  handleSaveCategoryInline: () => void
-
-  isAddingQualityInline: boolean
-  setIsAddingQualityInline: (adding: boolean) => void
-  inlineQualityValue: string
-  setInlineQualityValue: (val: string) => void
-  handleSaveQualityInline: () => void
-
-  isAddingUnitInline: boolean
-  setIsAddingUnitInline: (adding: boolean) => void
-  inlineUnitValue: string
-  setInlineUnitValue: (val: string) => void
-  handleSaveUnitInline: () => void
+  handleAddOption: (type: 'type' | 'category' | 'quality' | 'unit', val: string) => Promise<void>
 }
 
 export function MaterialFormDialogs({
   options,
+  handleDeleteOption,
+  handleAddOption,
   isAdding,
   setIsAdding,
   newMaterial,
@@ -87,28 +67,68 @@ export function MaterialFormDialogs({
   setIsDeletingOpen,
   selectedMaterial,
   isDeleting,
-  handleDeleteMaterial,
-  isAddingTypeInline,
-  setIsAddingTypeInline,
-  inlineTypeValue,
-  setInlineTypeValue,
-  handleSaveTypeInline,
-  isAddingCategoryInline,
-  setIsAddingCategoryInline,
-  inlineCategoryValue,
-  setInlineCategoryValue,
-  handleSaveCategoryInline,
-  isAddingQualityInline,
-  setIsAddingQualityInline,
-  inlineQualityValue,
-  setInlineQualityValue,
-  handleSaveQualityInline,
-  isAddingUnitInline,
-  setIsAddingUnitInline,
-  inlineUnitValue,
-  setInlineUnitValue,
-  handleSaveUnitInline
+  handleDeleteMaterial
 }: MaterialFormDialogsProps) {
+  // Manage Options Dialog State
+  const [isManagingOptionsOpen, setIsManagingOptionsOpen] = React.useState(false)
+  const [manageOptionType, setManageOptionType] = React.useState<'type' | 'category' | 'quality' | 'unit'>('type')
+  const [isDeletingOptionId, setIsDeletingOptionId] = React.useState<string | null>(null)
+
+  // Add Option in Manage Dialog State
+  const [newOptionValue, setNewOptionValue] = React.useState('')
+  const [isSavingOption, setIsSavingOption] = React.useState(false)
+
+  const handleAddSubmitInManage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const val = newOptionValue.trim()
+    if (!val) return
+    setIsSavingOption(true)
+    try {
+      await handleAddOption(manageOptionType, val)
+      setNewOptionValue('')
+    } catch (err) {
+      // Error is toasted in parent
+    } finally {
+      setIsSavingOption(false)
+    }
+  }
+
+  const getOptionTypeLabel = (type: 'type' | 'category' | 'quality' | 'unit') => {
+    switch (type) {
+      case 'type': return 'Jenis Bahan'
+      case 'category': return 'Kategori'
+      case 'quality': return 'Kualitas'
+      case 'unit': return 'Satuan'
+    }
+  }
+
+  const getOptionsList = (type: 'type' | 'category' | 'quality' | 'unit') => {
+    switch (type) {
+      case 'type': return options.types
+      case 'category': return options.categories
+      case 'quality': return options.qualities
+      case 'unit': return options.units
+    }
+  }
+
+  const openManageDialog = (type: 'type' | 'category' | 'quality' | 'unit') => {
+    setManageOptionType(type)
+    setIsManagingOptionsOpen(true)
+  }
+
+  const handleDeleteClick = async (id: string, name: string, displayName: string) => {
+    const confirmed = window.confirm(`Apakah Anda yakin ingin menghapus opsi ${getOptionTypeLabel(manageOptionType).toLowerCase()} "${displayName}"?`)
+    if (!confirmed) return
+
+    setIsDeletingOptionId(id)
+    try {
+      await handleDeleteOption(manageOptionType, id, name)
+    } catch (err) {
+      // Error toast is handled by parent route component
+    } finally {
+      setIsDeletingOptionId(null)
+    }
+  }
   
   return (
     <>
@@ -172,59 +192,35 @@ export function MaterialFormDialogs({
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsAddingTypeInline(!isAddingTypeInline)
-                      setInlineTypeValue('')
-                    }}
-                    className="text-[10px] text-gallery-dark font-bold hover:underline cursor-pointer focus-ring"
+                    onClick={() => openManageDialog('type')}
+                    className="px-2 py-0.5 border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base hover:border-gallery-dark/30 text-[9px] text-gallery-muted hover:text-gallery-dark font-bold uppercase tracking-wider rounded-sm transition-all active:scale-95 cursor-pointer focus-ring shadow-sm"
                   >
-                    {isAddingTypeInline ? 'Batal' : '+ Tambah'}
+                    Kelola
                   </button>
                 </div>
-                {isAddingTypeInline ? (
-                  <div className="flex flex-col gap-1.5">
-                    <input
-                      id="add-type-inline"
-                      type="text"
-                      required
-                      placeholder="Jenis"
-                      value={inlineTypeValue}
-                      onChange={(e) => setInlineTypeValue(e.target.value)}
-                      className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus-ring font-semibold"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveTypeInline}
-                      className="w-full bg-gallery-dark text-gallery-base py-1 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer text-center focus-ring"
-                    >
-                      Simpan
-                    </button>
-                  </div>
-                ) : (
-                  <select 
-                    id="add-type-select"
-                    disabled={isSavingNew}
-                    value={newMaterial.type}
-                    onChange={(e) => {
-                      const t = e.target.value
-                      let u = 'feet'
-                      if (t === 'FABRIC') u = 'meter'
-                      if (t === 'GLUE') u = 'ml'
-                      if (t === 'ZIPPER') u = 'pcs'
-                      if (t === 'ACCESSORY') u = 'pcs'
-                      
-                      const matchUnit = options.units.find(un => un.name === u)
-                      const unitVal = matchUnit ? matchUnit.name : (options.units[0]?.name || u)
+                <select 
+                  id="add-type-select"
+                  disabled={isSavingNew}
+                  value={newMaterial.type}
+                  onChange={(e) => {
+                    const t = e.target.value
+                    let u = 'feet'
+                    if (t === 'FABRIC') u = 'meter'
+                    if (t === 'GLUE') u = 'ml'
+                    if (t === 'ZIPPER') u = 'pcs'
+                    if (t === 'ACCESSORY') u = 'pcs'
+                    
+                    const matchUnit = options.units.find(un => un.name === u)
+                    const unitVal = matchUnit ? matchUnit.name : (options.units[0]?.name || u)
 
-                      setNewMaterial({...newMaterial, type: t, unit: unitVal})
-                    }}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide uppercase disabled:opacity-50"
-                  >
-                    {options.types.map(t => (
-                      <option key={t.id} value={t.name}>{t.label || t.name}</option>
-                    ))}
-                  </select>
-                )}
+                    setNewMaterial({...newMaterial, type: t, unit: unitVal})
+                  }}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide uppercase disabled:opacity-50"
+                >
+                  {options.types.map(t => (
+                    <option key={t.id} value={t.name}>{t.label || t.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1.5">
@@ -234,48 +230,24 @@ export function MaterialFormDialogs({
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsAddingCategoryInline(!isAddingCategoryInline)
-                      setInlineCategoryValue('')
-                    }}
-                    className="text-[10px] text-gallery-dark font-bold hover:underline cursor-pointer focus-ring"
+                    onClick={() => openManageDialog('category')}
+                    className="px-2 py-0.5 border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base hover:border-gallery-dark/30 text-[9px] text-gallery-muted hover:text-gallery-dark font-bold uppercase tracking-wider rounded-sm transition-all active:scale-95 cursor-pointer focus-ring shadow-sm"
                   >
-                    {isAddingCategoryInline ? 'Batal' : '+ Tambah'}
+                    Kelola
                   </button>
                 </div>
-                {isAddingCategoryInline ? (
-                  <div className="flex flex-col gap-1.5">
-                    <input
-                      id="add-category-inline"
-                      type="text"
-                      required
-                      placeholder="Kategori"
-                      value={inlineCategoryValue}
-                      onChange={(e) => setInlineCategoryValue(e.target.value)}
-                      className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus-ring font-semibold"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveCategoryInline}
-                      className="w-full bg-gallery-dark text-gallery-base py-1 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer text-center focus-ring"
-                    >
-                      Simpan
-                    </button>
-                  </div>
-                ) : (
-                  <select 
-                    id="add-category-select"
-                    required 
-                    disabled={isSavingNew}
-                    value={newMaterial.category}
-                    onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
-                  >
-                    {options.categories.map(c => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                )}
+                <select 
+                  id="add-category-select"
+                  required 
+                  disabled={isSavingNew}
+                  value={newMaterial.category}
+                  onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
+                >
+                  {options.categories.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1.5">
@@ -285,48 +257,24 @@ export function MaterialFormDialogs({
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsAddingQualityInline(!isAddingQualityInline)
-                      setInlineQualityValue('')
-                    }}
-                    className="text-[10px] text-gallery-dark font-bold hover:underline cursor-pointer focus-ring"
+                    onClick={() => openManageDialog('quality')}
+                    className="px-2 py-0.5 border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base hover:border-gallery-dark/30 text-[9px] text-gallery-muted hover:text-gallery-dark font-bold uppercase tracking-wider rounded-sm transition-all active:scale-95 cursor-pointer focus-ring shadow-sm"
                   >
-                    {isAddingQualityInline ? 'Batal' : '+ Tambah'}
+                    Kelola
                   </button>
                 </div>
-                {isAddingQualityInline ? (
-                  <div className="flex flex-col gap-1.5">
-                    <input
-                      id="add-quality-inline"
-                      type="text"
-                      required
-                      placeholder="Kualitas"
-                      value={inlineQualityValue}
-                      onChange={(e) => setInlineQualityValue(e.target.value)}
-                      className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus-ring font-semibold"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveQualityInline}
-                      className="w-full bg-gallery-dark text-gallery-base py-1 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer text-center focus-ring"
-                    >
-                      Simpan
-                    </button>
-                  </div>
-                ) : (
-                  <select 
-                    id="add-quality-select"
-                    required 
-                    disabled={isSavingNew}
-                    value={newMaterial.quality}
-                    onChange={(e) => setNewMaterial({...newMaterial, quality: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
-                  >
-                    {options.qualities.map(q => (
-                      <option key={q.id} value={q.name}>{q.name}</option>
-                    ))}
-                  </select>
-                )}
+                <select 
+                  id="add-quality-select"
+                  required 
+                  disabled={isSavingNew}
+                  value={newMaterial.quality}
+                  onChange={(e) => setNewMaterial({...newMaterial, quality: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
+                >
+                  {options.qualities.map(q => (
+                    <option key={q.id} value={q.name}>{q.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -386,48 +334,24 @@ export function MaterialFormDialogs({
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsAddingUnitInline(!isAddingUnitInline)
-                      setInlineUnitValue('')
-                    }}
-                    className="text-[10px] text-gallery-dark font-bold hover:underline cursor-pointer focus-ring"
+                    onClick={() => openManageDialog('unit')}
+                    className="px-2 py-0.5 border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base hover:border-gallery-dark/30 text-[9px] text-gallery-muted hover:text-gallery-dark font-bold uppercase tracking-wider rounded-sm transition-all active:scale-95 cursor-pointer focus-ring shadow-sm"
                   >
-                    {isAddingUnitInline ? 'Batal' : '+ Tambah'}
+                    Kelola
                   </button>
                 </div>
-                {isAddingUnitInline ? (
-                  <div className="flex flex-col gap-1.5">
-                    <input
-                      id="add-unit-inline"
-                      type="text"
-                      required
-                      placeholder="Pcs"
-                      value={inlineUnitValue}
-                      onChange={(e) => setInlineUnitValue(e.target.value)}
-                      className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus-ring font-semibold"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveUnitInline}
-                      className="w-full bg-gallery-dark text-gallery-base py-1 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer text-center focus-ring"
-                    >
-                      Simpan
-                    </button>
-                  </div>
-                ) : (
-                  <select 
-                    id="add-unit-select"
-                    required 
-                    disabled={isSavingNew}
-                    value={newMaterial.unit}
-                    onChange={(e) => setNewMaterial({...newMaterial, unit: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
-                  >
-                    {options.units.map(u => (
-                      <option key={u.id} value={u.name}>{u.name}</option>
-                    ))}
-                  </select>
-                )}
+                <select 
+                  id="add-unit-select"
+                  required 
+                  disabled={isSavingNew}
+                  value={newMaterial.unit}
+                  onChange={(e) => setNewMaterial({...newMaterial, unit: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
+                >
+                  {options.units.map(u => (
+                    <option key={u.id} value={u.name}>{u.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="add-expiry" className="text-[10px] uppercase tracking-[0.15em] text-gallery-muted font-bold block">
@@ -532,59 +456,35 @@ export function MaterialFormDialogs({
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsAddingTypeInline(!isAddingTypeInline)
-                      setInlineTypeValue('')
-                    }}
-                    className="text-[10px] text-gallery-dark font-bold hover:underline cursor-pointer focus-ring"
+                    onClick={() => openManageDialog('type')}
+                    className="px-2 py-0.5 border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base hover:border-gallery-dark/30 text-[9px] text-gallery-muted hover:text-gallery-dark font-bold uppercase tracking-wider rounded-sm transition-all active:scale-95 cursor-pointer focus-ring shadow-sm"
                   >
-                    {isAddingTypeInline ? 'Batal' : '+ Tambah'}
+                    Kelola
                   </button>
                 </div>
-                {isAddingTypeInline ? (
-                  <div className="flex flex-col gap-1.5">
-                    <input
-                      id="edit-type-inline"
-                      type="text"
-                      required
-                      placeholder="Jenis"
-                      value={inlineTypeValue}
-                      onChange={(e) => setInlineTypeValue(e.target.value)}
-                      className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus-ring font-semibold"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveTypeInline}
-                      className="w-full bg-gallery-dark text-gallery-base py-1 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer text-center focus-ring"
-                    >
-                      Simpan
-                    </button>
-                  </div>
-                ) : (
-                  <select 
-                    id="edit-type-select"
-                    disabled={isSavingEdit}
-                    value={editMaterialData.type}
-                    onChange={(e) => {
-                      const t = e.target.value
-                      let u = 'feet'
-                      if (t === 'FABRIC') u = 'meter'
-                      if (t === 'GLUE') u = 'ml'
-                      if (t === 'ZIPPER') u = 'pcs'
-                      if (t === 'ACCESSORY') u = 'pcs'
-                      
-                      const matchUnit = options.units.find(un => un.name === u)
-                      const unitVal = matchUnit ? matchUnit.name : (options.units[0]?.name || u)
+                <select 
+                  id="edit-type-select"
+                  disabled={isSavingEdit}
+                  value={editMaterialData.type}
+                  onChange={(e) => {
+                    const t = e.target.value
+                    let u = 'feet'
+                    if (t === 'FABRIC') u = 'meter'
+                    if (t === 'GLUE') u = 'ml'
+                    if (t === 'ZIPPER') u = 'pcs'
+                    if (t === 'ACCESSORY') u = 'pcs'
+                    
+                    const matchUnit = options.units.find(un => un.name === u)
+                    const unitVal = matchUnit ? matchUnit.name : (options.units[0]?.name || u)
 
-                      setEditMaterialData({...editMaterialData, type: t, unit: unitVal})
-                    }}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide uppercase disabled:opacity-50"
-                  >
-                    {options.types.map(t => (
-                      <option key={t.id} value={t.name}>{t.label || t.name}</option>
-                    ))}
-                  </select>
-                )}
+                    setEditMaterialData({...editMaterialData, type: t, unit: unitVal})
+                  }}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide uppercase disabled:opacity-50"
+                >
+                  {options.types.map(t => (
+                    <option key={t.id} value={t.name}>{t.label || t.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1.5">
@@ -594,48 +494,24 @@ export function MaterialFormDialogs({
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsAddingCategoryInline(!isAddingCategoryInline)
-                      setInlineCategoryValue('')
-                    }}
-                    className="text-[10px] text-gallery-dark font-bold hover:underline cursor-pointer focus-ring"
+                    onClick={() => openManageDialog('category')}
+                    className="px-2 py-0.5 border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base hover:border-gallery-dark/30 text-[9px] text-gallery-muted hover:text-gallery-dark font-bold uppercase tracking-wider rounded-sm transition-all active:scale-95 cursor-pointer focus-ring shadow-sm"
                   >
-                    {isAddingCategoryInline ? 'Batal' : '+ Tambah'}
+                    Kelola
                   </button>
                 </div>
-                {isAddingCategoryInline ? (
-                  <div className="flex flex-col gap-1.5">
-                    <input
-                      id="edit-category-inline"
-                      type="text"
-                      required
-                      placeholder="Kategori"
-                      value={inlineCategoryValue}
-                      onChange={(e) => setInlineCategoryValue(e.target.value)}
-                      className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus-ring font-semibold"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveCategoryInline}
-                      className="w-full bg-gallery-dark text-gallery-base py-1 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer text-center focus-ring"
-                    >
-                      Simpan
-                    </button>
-                  </div>
-                ) : (
-                  <select 
-                    id="edit-category-select"
-                    required 
-                    disabled={isSavingEdit}
-                    value={editMaterialData.category}
-                    onChange={(e) => setEditMaterialData({...editMaterialData, category: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
-                  >
-                    {options.categories.map(c => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                )}
+                <select 
+                  id="edit-category-select"
+                  required 
+                  disabled={isSavingEdit}
+                  value={editMaterialData.category}
+                  onChange={(e) => setEditMaterialData({...editMaterialData, category: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
+                >
+                  {options.categories.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1.5">
@@ -645,48 +521,24 @@ export function MaterialFormDialogs({
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsAddingQualityInline(!isAddingQualityInline)
-                      setInlineQualityValue('')
-                    }}
-                    className="text-[10px] text-gallery-dark font-bold hover:underline cursor-pointer focus-ring"
+                    onClick={() => openManageDialog('quality')}
+                    className="px-2 py-0.5 border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base hover:border-gallery-dark/30 text-[9px] text-gallery-muted hover:text-gallery-dark font-bold uppercase tracking-wider rounded-sm transition-all active:scale-95 cursor-pointer focus-ring shadow-sm"
                   >
-                    {isAddingQualityInline ? 'Batal' : '+ Tambah'}
+                    Kelola
                   </button>
                 </div>
-                {isAddingQualityInline ? (
-                  <div className="flex flex-col gap-1.5">
-                    <input
-                      id="edit-quality-inline"
-                      type="text"
-                      required
-                      placeholder="Kualitas"
-                      value={inlineQualityValue}
-                      onChange={(e) => setInlineQualityValue(e.target.value)}
-                      className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus-ring font-semibold"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveQualityInline}
-                      className="w-full bg-gallery-dark text-gallery-base py-1 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer text-center focus-ring"
-                    >
-                      Simpan
-                    </button>
-                  </div>
-                ) : (
-                  <select 
-                    id="edit-quality-select"
-                    required 
-                    disabled={isSavingEdit}
-                    value={editMaterialData.quality}
-                    onChange={(e) => setEditMaterialData({...editMaterialData, quality: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
-                  >
-                    {options.qualities.map(q => (
-                      <option key={q.id} value={q.name}>{q.name}</option>
-                    ))}
-                  </select>
-                )}
+                <select 
+                  id="edit-quality-select"
+                  required 
+                  disabled={isSavingEdit}
+                  value={editMaterialData.quality}
+                  onChange={(e) => setEditMaterialData({...editMaterialData, quality: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
+                >
+                  {options.qualities.map(q => (
+                    <option key={q.id} value={q.name}>{q.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -744,48 +596,24 @@ export function MaterialFormDialogs({
                   </label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsAddingUnitInline(!isAddingUnitInline)
-                      setInlineUnitValue('')
-                    }}
-                    className="text-[10px] text-gallery-dark font-bold hover:underline cursor-pointer focus-ring"
+                    onClick={() => openManageDialog('unit')}
+                    className="px-2 py-0.5 border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base hover:border-gallery-dark/30 text-[9px] text-gallery-muted hover:text-gallery-dark font-bold uppercase tracking-wider rounded-sm transition-all active:scale-95 cursor-pointer focus-ring shadow-sm"
                   >
-                    {isAddingUnitInline ? 'Batal' : '+ Tambah'}
+                    Kelola
                   </button>
                 </div>
-                {isAddingUnitInline ? (
-                  <div className="flex flex-col gap-1.5">
-                    <input
-                      id="edit-unit-inline"
-                      type="text"
-                      required
-                      placeholder="Pcs"
-                      value={inlineUnitValue}
-                      onChange={(e) => setInlineUnitValue(e.target.value)}
-                      className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-2 py-1 text-xs text-gallery-dark focus-ring font-semibold"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveUnitInline}
-                      className="w-full bg-gallery-dark text-gallery-base py-1 text-[10px] font-bold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer text-center focus-ring"
-                    >
-                      Simpan
-                    </button>
-                  </div>
-                ) : (
-                  <select 
-                    id="edit-unit-select"
-                    required 
-                    disabled={isSavingEdit}
-                    value={editMaterialData.unit}
-                    onChange={(e) => setEditMaterialData({...editMaterialData, unit: e.target.value})}
-                    className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
-                  >
-                    {options.units.map(u => (
-                      <option key={u.id} value={u.name}>{u.name}</option>
-                    ))}
-                  </select>
-                )}
+                <select 
+                  id="edit-unit-select"
+                  required 
+                  disabled={isSavingEdit}
+                  value={editMaterialData.unit}
+                  onChange={(e) => setEditMaterialData({...editMaterialData, unit: e.target.value})}
+                  className="w-full bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold tracking-wide disabled:opacity-50"
+                >
+                  {options.units.map(u => (
+                    <option key={u.id} value={u.name}>{u.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -851,6 +679,96 @@ export function MaterialFormDialogs({
               ) : (
                 <span>Hapus Permanen</span>
               )}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MANAGE OPTIONS DIALOG */}
+      <Dialog open={isManagingOptionsOpen} onOpenChange={setIsManagingOptionsOpen}>
+        <DialogContent className="max-w-[420px] font-sans">
+          <DialogHeader>
+            <DialogTitle className="uppercase tracking-[0.08em]">
+              KELOLA OPSI {getOptionTypeLabel(manageOptionType).toUpperCase()}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Daftar opsi yang tersedia di sistem. Anda dapat menghapus opsi yang tidak sedang digunakan oleh bahan baku mana pun.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            {/* Add New Option Form */}
+            <form onSubmit={handleAddSubmitInManage} className="flex gap-2 mb-4">
+              <input 
+                type="text" 
+                required
+                disabled={isSavingOption}
+                placeholder={`Tambah ${getOptionTypeLabel(manageOptionType).toLowerCase()} baru...`}
+                value={newOptionValue}
+                onChange={(e) => setNewOptionValue(e.target.value)}
+                className="flex-1 bg-gallery-base border-[0.5px] border-gallery-line px-3 py-1.5 text-xs text-gallery-dark focus-ring font-semibold disabled:opacity-50"
+              />
+              <button 
+                type="submit"
+                disabled={isSavingOption || !newOptionValue.trim()}
+                className="bg-gallery-dark text-gallery-base px-4 py-1.5 text-xs font-semibold uppercase tracking-wider hover:opacity-90 active:scale-95 duration-150 cursor-pointer disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1 focus-ring"
+              >
+                {isSavingOption ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  'Tambah'
+                )}
+              </button>
+            </form>
+
+            <div className="text-[10px] uppercase tracking-[0.15em] text-gallery-muted font-bold block mb-2">
+              Daftar Opsi Aktif
+            </div>
+            
+            <div className="max-h-[260px] overflow-y-auto space-y-1.5 border-[0.5px] border-gallery-line p-2.5 bg-gallery-split/20">
+              {getOptionsList(manageOptionType)?.length === 0 ? (
+                <p className="text-xs text-gallery-muted italic py-6 text-center">
+                  Belum ada opsi yang ditambahkan.
+                </p>
+              ) : (
+                getOptionsList(manageOptionType)?.map((opt: any) => {
+                  const displayName = opt.label || opt.name
+                  const isDeletingThis = isDeletingOptionId === opt.id
+                  return (
+                    <div 
+                      key={opt.id} 
+                      className="flex justify-between items-center bg-white p-2.5 border-[0.5px] border-gallery-line hover:border-gallery-dark/40 transition-colors duration-150"
+                    >
+                      <span className="text-xs font-semibold text-gallery-dark pr-2 truncate">
+                        {displayName}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={isDeletingOptionId !== null}
+                        onClick={() => handleDeleteClick(opt.id, opt.name, displayName)}
+                        className="text-red-600 hover:text-red-800 disabled:text-gallery-line p-1 hover:bg-red-50 disabled:hover:bg-transparent rounded transition-colors duration-150 cursor-pointer flex items-center justify-center min-w-[28px] min-h-[28px]"
+                        title="Hapus opsi"
+                      >
+                        {isDeletingThis ? (
+                          <Loader2 size={12} className="animate-spin text-gallery-muted" />
+                        ) : (
+                          <Trash2 size={13} />
+                        )}
+                      </button>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <button
+              type="button"
+              onClick={() => setIsManagingOptionsOpen(false)}
+              className="w-full px-4 py-2 border-[0.5px] border-gallery-line bg-gallery-split hover:bg-gallery-base text-gallery-muted hover:text-gallery-dark text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer text-center focus-ring"
+            >
+              Tutup
             </button>
           </DialogFooter>
         </DialogContent>

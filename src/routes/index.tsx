@@ -49,7 +49,7 @@ function DashboardPage() {
             </div>
           </div>
           <p className="text-[10px] text-gallery-muted tracking-wide mt-6 font-semibold uppercase">
-            Terbagi dalam {Object.keys(stats.typeStats).length} tipe kategori bahan
+            Terbagi dalam {Object.keys(stats.typeStats).length} jenis bahan
           </p>
         </div>
 
@@ -181,7 +181,7 @@ function DashboardPage() {
           <div className="border-[0.5px] border-gallery-line bg-gallery-split p-6">
             <div className="border-b-[0.5px] border-gallery-line pb-3 mb-4">
               <h3 className="text-xs font-serif tracking-widest text-gallery-dark uppercase font-semibold">
-                SEBARAN KATEGORI INVENTARIS
+                SEBARAN JENIS BAHAN INVENTARIS
               </h3>
             </div>
             
@@ -191,10 +191,10 @@ function DashboardPage() {
                   <div key={type} className="bg-gallery-base p-4 border-[0.5px] border-gallery-line flex flex-col justify-between min-h-[90px]">
                     <div>
                       <div className="text-[9px] font-bold uppercase tracking-widest text-gallery-muted">
-                        Kategori
+                        Jenis Bahan
                       </div>
                       <div className="text-[11px] font-serif font-bold tracking-wider text-gallery-dark uppercase mt-0.5">
-                        {type}
+                        {data.label || type}
                       </div>
                     </div>
                     <div className="mt-4 flex items-baseline justify-between border-t border-gallery-line/50 pt-2">
