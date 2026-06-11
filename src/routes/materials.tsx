@@ -558,11 +558,11 @@ function MaterialsPage() {
                 className="bg-gallery-split border-[0.5px] border-gallery-line px-3 py-2 text-xs font-semibold text-gallery-dark focus-ring uppercase tracking-wider"
               >
                 <option value="ALL">Semua Jenis Bahan</option>
-                <option value="LEATHER">Kulit</option>
-                <option value="FABRIC">Kain</option>
-                <option value="GLUE">Lem</option>
-                <option value="ZIPPER">Resleting</option>
-                <option value="ACCESSORY">Aksesori</option>
+                {options.types.map((t) => (
+                  <option key={t.id} value={t.name}>
+                    {t.label || t.name}
+                  </option>
+                ))}
               </select>
               <button 
                 type="submit"
